@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Plug Date / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css">
+    <link rel="stylesheet" href="./style.css?v=20260603-p1">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js"></script>
-    <script defer src="./calendar.js"></script>
+    <script defer src="./calendar-config.js?v=20260603-p1"></script>
+    <script defer src="./calendar.js?v=20260603-p1"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -44,9 +44,9 @@
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="birthDate">Actual birth date / P0</label>
-            <input class="date-input" type="date" id="birthDate">
-            <p class="hint">Leave blank to estimate birth as plug date +19 to +20 days. If filled, P13/P14 will be recalculated from the actual P0 date.</p>
+            <label class="field-label" for="birthDate">Calculated birth date / P1</label>
+            <input class="date-input" type="date" id="birthDate" readonly>
+            <p class="hint">Automatically calculated as plug date +20 days. P13/P14 are calculated from this P1 date.</p>
           </div>
 
           <div class="action-row">

@@ -32,7 +32,6 @@
     mode: "plug",
     pairingDate: "",
     plugDate: toISO(today),
-    birthDate: "",
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -72,11 +71,6 @@
       persistAndRender();
     });
 
-    els.birthDate.addEventListener("change", () => {
-      state.birthDate = els.birthDate.value;
-      persistAndRender();
-    });
-
     els.todayButton.addEventListener("click", () => {
       state.visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       persistAndRender();
@@ -87,7 +81,6 @@
         mode: "plug",
         pairingDate: "",
         plugDate: "",
-        birthDate: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
       persistAndRender();
@@ -120,7 +113,7 @@
     els.pairingField.hidden = state.mode !== "pairing";
     els.pairingDate.value = state.pairingDate || "";
     els.plugDate.value = state.plugDate || "";
-    els.birthDate.value = state.birthDate || "";
+    els.birthDate.value = state.plugDate ? toISO(addDays(parseISO(state.plugDate), 20)) : "";
   }
 
   function render() {
@@ -167,58 +160,29 @@
       rule: "Plug date + 15 days.",
     });
 
-    const birthStart = addDays(plug, 19);
-    const birthEnd = addDays(plug, 20);
+    const p1 = addDays(plug, 20);
     events.push({
-      id: "birth-estimate-start",
-      title: "Estimated birth",
+      id: "birth-p1",
+      title: "Birth / P1",
       type: "birth",
-      date: birthStart,
-      endDate: birthEnd,
-      rule: "Mice are usually born around E19.5–E20.5, approximately plug date + 19 to +20 days.",
+      date: p1,
+      rule: "Birth is automatically calculated as plug date + 20 days and recorded as P1.",
     });
 
-    const p0 = state.birthDate ? parseISO(state.birthDate) : null;
-    if (p0) {
-      events.push({
-        id: "p0",
-        title: "P0 actual birth",
-        type: "birth",
-        date: p0,
-        rule: "The actual birth date is recorded as P0.",
-      });
-      events.push({
-        id: "p13",
-        title: "P13 two-photon imaging",
-        type: "imaging",
-        date: addDays(p0, 13),
-        rule: "Actual birth / P0 + 13 days.",
-      });
-      events.push({
-        id: "p14",
-        title: "P14 two-photon imaging",
-        type: "imaging",
-        date: addDays(p0, 14),
-        rule: "Actual birth / P0 + 14 days.",
-      });
-    } else {
-      events.push({
-        id: "p13-estimate",
-        title: "P13 two-photon imaging",
-        type: "imaging",
-        date: addDays(plug, 32),
-        endDate: addDays(plug, 33),
-        rule: "If actual birth is not filled in, the rough estimate is plug date + 32 to +33 days.",
-      });
-      events.push({
-        id: "p14-estimate",
-        title: "P14 two-photon imaging",
-        type: "imaging",
-        date: addDays(plug, 33),
-        endDate: addDays(plug, 34),
-        rule: "If actual birth is not filled in, the rough estimate is plug date + 33 to +34 days.",
-      });
-    }
+    events.push({
+      id: "p13",
+      title: "P13 two-photon imaging",
+      type: "imaging",
+      date: addDays(p1, 12),
+      rule: "P13 is calculated as P1 + 12 days.",
+    });
+    events.push({
+      id: "p14",
+      title: "P14 two-photon imaging",
+      type: "imaging",
+      date: addDays(p1, 13),
+      rule: "P14 is calculated as P1 + 13 days.",
+    });
 
     return events;
   }
@@ -272,13 +236,9 @@
       getCard("Plug date / E0.5", events, "plug"),
       getCard("E14.5 IUE", events, "iue145"),
       getCard("E15.5 IUE", events, "iue155"),
-      getCard("Estimated birth", events, "birth-estimate-start"),
-      state.birthDate
-        ? getCard("P13 two-photon", events, "p13")
-        : getCard("P13 two-photon", events, "p13-estimate"),
-      state.birthDate
-        ? getCard("P14 two-photon", events, "p14")
-        : getCard("P14 two-photon", events, "p14-estimate"),
+      getCard("Birth / P1", events, "birth-p1"),
+      getCard("P13 two-photon", events, "p13"),
+      getCard("P14 two-photon", events, "p14"),
     ];
 
     cards.forEach((card) => {
