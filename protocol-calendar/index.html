@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>见栓 / IUE / 双光子日历</title>
+    <link rel="stylesheet" href="./style.css">
+    <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
+    <script defer src="./calendar-config.js"></script>
+    <script defer src="./calendar.js"></script>
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <aside class="control-panel" aria-label="实验日期设置">
+          <div class="brand-block">
+            <p class="eyebrow">S1 two-photon protocol</p>
+            <h1>见栓 / IUE / 双光子日历</h1>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label">输入模式</label>
+            <div class="segmented" role="radiogroup" aria-label="输入模式">
+              <label>
+                <input type="radio" name="dateMode" value="plug" checked>
+                <span>见栓日</span>
+              </label>
+              <label>
+                <input type="radio" name="dateMode" value="pairing">
+                <span>合笼日</span>
+              </label>
+            </div>
+          </div>
+
+          <div class="field-group" id="pairingField" hidden>
+            <label class="field-label" for="pairingDate">合笼日期</label>
+            <input class="date-input" type="date" id="pairingDate">
+            <p class="hint">合笼日只作为记录；正式计算仍以见栓日 E0.5 为起点。</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="plugDate">见栓日 / E0.5</label>
+            <input class="date-input" type="date" id="plugDate">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="birthDate">实际出生 / P0</label>
+            <input class="date-input" type="date" id="birthDate">
+            <p class="hint">留空时按见栓日 +19～20 天估算；填写后 P13/P14 将按实际 P0 重新计算。</p>
+          </div>
+
+          <div class="action-row">
+            <button class="primary-button" type="button" id="todayButton">回到今天</button>
+            <button class="secondary-button" type="button" id="clearButton">清空</button>
+          </div>
+
+          <section class="sync-panel" aria-label="Outlook 日历同步">
+            <div>
+              <h2>Hotmail / Outlook</h2>
+              <p id="syncStatus">未连接</p>
+            </div>
+            <button class="sync-button" type="button" id="syncButton">同步标记</button>
+          </section>
+        </aside>
+
+        <section class="calendar-panel" aria-label="实验日历">
+          <header class="calendar-toolbar">
+            <button class="icon-button" type="button" id="prevMonth" aria-label="上个月" title="上个月">
+              <span aria-hidden="true">&lsaquo;</span>
+            </button>
+            <h2 id="monthTitle"></h2>
+            <button class="icon-button" type="button" id="nextMonth" aria-label="下个月" title="下个月">
+              <span aria-hidden="true">&rsaquo;</span>
+            </button>
+          </header>
+
+          <div class="weekday-grid" aria-hidden="true">
+            <span>一</span>
+            <span>二</span>
+            <span>三</span>
+            <span>四</span>
+            <span>五</span>
+            <span>六</span>
+            <span>日</span>
+          </div>
+          <div class="calendar-grid" id="calendarGrid" aria-live="polite"></div>
+        </section>
+      </section>
+
+      <section class="summary-band" aria-label="计算结果">
+        <div class="summary-header">
+          <h2>计算结果</h2>
+          <p id="basisText">请选择见栓日开始计算。</p>
+        </div>
+        <div class="result-grid" id="resultGrid"></div>
+      </section>
+    </main>
+
+    <dialog class="event-dialog" id="eventDialog">
+      <button class="dialog-close" type="button" id="closeDialog" aria-label="关闭" title="关闭">×</button>
+      <p class="dialog-type" id="dialogType"></p>
+      <h2 id="dialogTitle"></h2>
+      <p id="dialogDate"></p>
+      <p id="dialogRule"></p>
+    </dialog>
+  </body>
+</html>
