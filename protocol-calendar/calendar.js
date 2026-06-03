@@ -135,10 +135,10 @@
     if (state.mode === "pairing" && state.pairingDate) {
       events.push({
         id: "pairing",
-        title: "合笼",
+        title: "Pairing",
         type: "pairing",
         date: parseISO(state.pairingDate),
-        rule: "记录合笼日期；正式计算仍以见栓日 E0.5 为起点。",
+        rule: "Pairing date is recorded only; official calculations still start from the plug date as E0.5.",
       });
     }
 
@@ -147,76 +147,76 @@
     const plug = parseISO(state.plugDate);
     events.push({
       id: "plug",
-      title: "见栓 / E0.5",
+      title: "Plug date / E0.5",
       type: "plug",
       date: plug,
-      rule: "见栓日定义为 E0.5，所有正式时间点从这一天推算。",
+      rule: "The plug date is defined as E0.5. All official milestones are calculated from this date.",
     });
     events.push({
       id: "iue145",
       title: "E14.5 IUE",
       type: "iue",
       date: addDays(plug, 14),
-      rule: "见栓日 + 14 天。",
+      rule: "Plug date + 14 days.",
     });
     events.push({
       id: "iue155",
       title: "E15.5 IUE",
       type: "iue",
       date: addDays(plug, 15),
-      rule: "见栓日 + 15 天。",
+      rule: "Plug date + 15 days.",
     });
 
     const birthStart = addDays(plug, 19);
     const birthEnd = addDays(plug, 20);
     events.push({
       id: "birth-estimate-start",
-      title: "预计出生",
+      title: "Estimated birth",
       type: "birth",
       date: birthStart,
       endDate: birthEnd,
-      rule: "小鼠通常在 E19.5–E20.5 左右出生，约为见栓日 + 19～20 天。",
+      rule: "Mice are usually born around E19.5–E20.5, approximately plug date + 19 to +20 days.",
     });
 
     const p0 = state.birthDate ? parseISO(state.birthDate) : null;
     if (p0) {
       events.push({
         id: "p0",
-        title: "P0 实际出生",
+        title: "P0 actual birth",
         type: "birth",
         date: p0,
-        rule: "实际出生当天记为 P0。",
+        rule: "The actual birth date is recorded as P0.",
       });
       events.push({
         id: "p13",
-        title: "P13 双光子",
+        title: "P13 two-photon imaging",
         type: "imaging",
         date: addDays(p0, 13),
-        rule: "实际出生 / P0 + 13 天。",
+        rule: "Actual birth / P0 + 13 days.",
       });
       events.push({
         id: "p14",
-        title: "P14 双光子",
+        title: "P14 two-photon imaging",
         type: "imaging",
         date: addDays(p0, 14),
-        rule: "实际出生 / P0 + 14 天。",
+        rule: "Actual birth / P0 + 14 days.",
       });
     } else {
       events.push({
         id: "p13-estimate",
-        title: "P13 双光子",
+        title: "P13 two-photon imaging",
         type: "imaging",
         date: addDays(plug, 32),
         endDate: addDays(plug, 33),
-        rule: "未填写实际出生时，粗略估算为见栓日 + 32～33 天。",
+        rule: "If actual birth is not filled in, the rough estimate is plug date + 32 to +33 days.",
       });
       events.push({
         id: "p14-estimate",
-        title: "P14 双光子",
+        title: "P14 two-photon imaging",
         type: "imaging",
         date: addDays(plug, 33),
         endDate: addDays(plug, 34),
-        rule: "未填写实际出生时，粗略估算为见栓日 + 33～34 天。",
+        rule: "If actual birth is not filled in, the rough estimate is plug date + 33 to +34 days.",
       });
     }
 
@@ -225,7 +225,7 @@
 
   function renderCalendar(events) {
     const visible = state.visibleMonth;
-    els.monthTitle.textContent = `${visible.getFullYear()} 年 ${visible.getMonth() + 1} 月`;
+    els.monthTitle.textContent = `${monthName(visible)} ${visible.getFullYear()}`;
     els.calendarGrid.innerHTML = "";
 
     const firstOfMonth = new Date(visible.getFullYear(), visible.getMonth(), 1);
@@ -252,7 +252,7 @@
         const button = document.createElement("button");
         button.type = "button";
         button.className = `event-pill event-${event.type}`;
-        button.textContent = event.endDate ? `${event.title} ～` : event.title;
+        button.textContent = event.endDate ? `${event.title} -` : event.title;
         button.addEventListener("click", () => showEvent(event));
         list.appendChild(button);
       });
@@ -265,20 +265,20 @@
     els.resultGrid.innerHTML = "";
     const plug = state.plugDate ? parseISO(state.plugDate) : null;
     els.basisText.textContent = plug
-      ? `计算起点：${formatDate(plug)} = E0.5`
-      : "请选择见栓日开始计算。";
+      ? `Calculation basis: ${formatDate(plug)} = E0.5`
+      : "Select a plug date to start calculation.";
 
     const cards = [
-      getCard("见栓 / E0.5", events, "plug"),
+      getCard("Plug date / E0.5", events, "plug"),
       getCard("E14.5 IUE", events, "iue145"),
       getCard("E15.5 IUE", events, "iue155"),
-      getCard("预计出生", events, "birth-estimate-start"),
+      getCard("Estimated birth", events, "birth-estimate-start"),
       state.birthDate
-        ? getCard("P13 双光子", events, "p13")
-        : getCard("P13 双光子", events, "p13-estimate"),
+        ? getCard("P13 two-photon", events, "p13")
+        : getCard("P13 two-photon", events, "p13-estimate"),
       state.birthDate
-        ? getCard("P14 双光子", events, "p14")
-        : getCard("P14 双光子", events, "p14-estimate"),
+        ? getCard("P14 two-photon", events, "p14")
+        : getCard("P14 two-photon", events, "p14-estimate"),
     ];
 
     cards.forEach((card) => {
@@ -293,7 +293,7 @@
 
   function getCard(label, events, id) {
     const event = events.find((candidate) => candidate.id === id);
-    if (!event) return { label, date: "未设置", rule: "等待见栓日。" };
+    if (!event) return { label, date: "Not set", rule: "Waiting for plug date." };
     return {
       label,
       date: formatEventDate(event),
@@ -312,16 +312,16 @@
   function updateSyncState(events) {
     const hasEvents = events.some((event) => event.id !== "pairing");
     if (!cfg.microsoftClientId) {
-      els.syncStatus.textContent = "需要填写 Microsoft Client ID";
+      els.syncStatus.textContent = "Microsoft Client ID is required";
       els.syncButton.disabled = true;
       return;
     }
     if (!hasEvents) {
-      els.syncStatus.textContent = "请选择见栓日";
+      els.syncStatus.textContent = "Select a plug date";
       els.syncButton.disabled = true;
       return;
     }
-    els.syncStatus.textContent = "可同步为全天事件，提前 1 天提醒";
+    els.syncStatus.textContent = "Ready to sync all-day events with 1-day reminders";
     els.syncButton.disabled = false;
   }
 
@@ -331,16 +331,16 @@
     if (!window.msal || !cfg.microsoftClientId) return;
 
     els.syncButton.disabled = true;
-    els.syncStatus.textContent = "正在连接 Microsoft...";
+    els.syncStatus.textContent = "Connecting to Microsoft...";
 
     try {
       const token = await getGraphToken();
       for (const event of events) {
         await createOutlookEvent(token, event);
       }
-      els.syncStatus.textContent = `已同步 ${events.length} 个日历标记`;
+      els.syncStatus.textContent = `Synced ${events.length} calendar markers`;
     } catch (error) {
-      els.syncStatus.textContent = `同步失败：${error.message || "请检查授权配置"}`;
+      els.syncStatus.textContent = `Sync failed: ${error.message || "check authorization settings"}`;
     } finally {
       els.syncButton.disabled = false;
     }
@@ -387,7 +387,7 @@
       subject: event.title,
       body: {
         contentType: "HTML",
-        content: `<p>${escapeHTML(event.rule)}</p><p>由见栓 / IUE / 双光子日历生成。</p>`,
+        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Plug Date / IUE / Two-Photon Calendar.</p>`,
       },
       start: {
         dateTime: `${date}T00:00:00`,
@@ -432,7 +432,7 @@
 
   function formatEventDate(event) {
     if (event.endDate && !sameDay(event.date, event.endDate)) {
-      return `${formatDate(event.date)} ～ ${formatDate(event.endDate)}`;
+      return `${formatDate(event.date)} - ${formatDate(event.endDate)}`;
     }
     return formatDate(event.date);
   }
@@ -466,7 +466,11 @@
   }
 
   function formatDate(date) {
-    return `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+    return `${monthName(date)} ${date.getDate()}, ${date.getFullYear()}`;
+  }
+
+  function monthName(date) {
+    return date.toLocaleString("en-US", { month: "long" });
   }
 
   function saveState() {
