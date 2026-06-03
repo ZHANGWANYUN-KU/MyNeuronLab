@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Plug Date / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260603-p1">
+    <title>Pairing / IUE / Two-Photon Calendar</title>
+    <link rel="stylesheet" href="./style.css?v=20260603-pairing">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260603-p1"></script>
-    <script defer src="./calendar.js?v=20260603-p1"></script>
+    <script defer src="./calendar-config.js?v=20260603-pairing"></script>
+    <script defer src="./calendar.js?v=20260603-pairing"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -15,32 +15,18 @@
         <aside class="control-panel" aria-label="Experiment date settings">
           <div class="brand-block">
             <p class="eyebrow">S1 two-photon protocol</p>
-            <h1>Plug Date / IUE / Two-Photon Calendar</h1>
+            <h1>Pairing / IUE / Two-Photon Calendar</h1>
           </div>
 
-          <div class="field-group">
-            <label class="field-label">Input mode</label>
-            <div class="segmented" role="radiogroup" aria-label="Input mode">
-              <label>
-                <input type="radio" name="dateMode" value="plug" checked>
-                <span>Plug date</span>
-              </label>
-              <label>
-                <input type="radio" name="dateMode" value="pairing">
-                <span>Pairing date</span>
-              </label>
-            </div>
-          </div>
-
-          <div class="field-group" id="pairingField" hidden>
+          <div class="field-group" id="pairingField">
             <label class="field-label" for="pairingDate">Pairing date</label>
             <input class="date-input" type="date" id="pairingDate">
-            <p class="hint">Pairing date is recorded only; all official calculations still start from the plug date as E0.5.</p>
+            <p class="hint">Enter the pairing date only. The plug date is automatically calculated as the next day morning and treated as E0.5.</p>
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="plugDate">Plug date / E0.5</label>
-            <input class="date-input" type="date" id="plugDate">
+            <label class="field-label" for="plugDate">Calculated plug date / E0.5</label>
+            <input class="date-input" type="date" id="plugDate" readonly>
           </div>
 
           <div class="field-group">
@@ -90,7 +76,7 @@
       <section class="summary-band" aria-label="Calculation results">
         <div class="summary-header">
           <h2>Calculation Results</h2>
-          <p id="basisText">Select a plug date to start calculation.</p>
+            <p id="basisText">Enter a pairing date to start calculation.</p>
         </div>
         <div class="result-grid" id="resultGrid"></div>
       </section>

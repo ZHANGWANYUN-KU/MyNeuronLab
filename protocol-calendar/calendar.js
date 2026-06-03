@@ -4,7 +4,6 @@
   const cfg = window.PROTOCOL_CALENDAR_CONFIG || {};
 
   const els = {
-    dateModes: Array.from(document.querySelectorAll("input[name='dateMode']")),
     pairingField: document.getElementById("pairingField"),
     pairingDate: document.getElementById("pairingDate"),
     plugDate: document.getElementById("plugDate"),
@@ -29,9 +28,7 @@
 
   const today = stripTime(new Date());
   let state = {
-    mode: "plug",
-    pairingDate: "",
-    plugDate: toISO(today),
+    pairingDate: toISO(today),
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -47,25 +44,10 @@
   }
 
   function attachEvents() {
-    els.dateModes.forEach((input) => {
-      input.addEventListener("change", () => {
-        state.mode = selectedMode();
-        if (state.mode === "pairing" && !state.pairingDate) {
-          state.pairingDate = state.plugDate;
-        }
-        persistAndRender();
-      });
-    });
-
     els.pairingDate.addEventListener("change", () => {
       state.pairingDate = els.pairingDate.value;
-      persistAndRender();
-    });
-
-    els.plugDate.addEventListener("change", () => {
-      state.plugDate = els.plugDate.value;
-      if (state.plugDate) {
-        const plug = parseISO(state.plugDate);
+      if (state.pairingDate) {
+        const plug = calculatedPlugDate();
         state.visibleMonth = new Date(plug.getFullYear(), plug.getMonth(), 1);
       }
       persistAndRender();
@@ -78,9 +60,7 @@
 
     els.clearButton.addEventListener("click", () => {
       state = {
-        mode: "plug",
         pairingDate: "",
-        plugDate: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
       persistAndRender();
@@ -107,13 +87,9 @@
   }
 
   function syncControlsFromState() {
-    els.dateModes.forEach((input) => {
-      input.checked = input.value === state.mode;
-    });
-    els.pairingField.hidden = state.mode !== "pairing";
     els.pairingDate.value = state.pairingDate || "";
-    els.plugDate.value = state.plugDate || "";
-    els.birthDate.value = state.plugDate ? toISO(addDays(parseISO(state.plugDate), 20)) : "";
+    els.plugDate.value = state.pairingDate ? toISO(calculatedPlugDate()) : "";
+    els.birthDate.value = state.pairingDate ? toISO(addDays(calculatedPlugDate(), 20)) : "";
   }
 
   function render() {
@@ -125,25 +101,23 @@
 
   function buildEvents() {
     const events = [];
-    if (state.mode === "pairing" && state.pairingDate) {
-      events.push({
-        id: "pairing",
-        title: "Pairing",
-        type: "pairing",
-        date: parseISO(state.pairingDate),
-        rule: "Pairing date is recorded only; official calculations still start from the plug date as E0.5.",
-      });
-    }
+    if (!state.pairingDate) return events;
 
-    if (!state.plugDate) return events;
+    events.push({
+      id: "pairing",
+      title: "Pairing",
+      type: "pairing",
+      date: parseISO(state.pairingDate),
+      rule: "User-entered pairing date.",
+    });
 
-    const plug = parseISO(state.plugDate);
+    const plug = calculatedPlugDate();
     events.push({
       id: "plug",
       title: "Plug date / E0.5",
       type: "plug",
       date: plug,
-      rule: "The plug date is defined as E0.5. All official milestones are calculated from this date.",
+      rule: "Automatically calculated as pairing date + 1 day, then defined as E0.5.",
     });
     events.push({
       id: "iue145",
@@ -227,12 +201,13 @@
 
   function renderResults(events) {
     els.resultGrid.innerHTML = "";
-    const plug = state.plugDate ? parseISO(state.plugDate) : null;
+    const plug = state.pairingDate ? calculatedPlugDate() : null;
     els.basisText.textContent = plug
-      ? `Calculation basis: ${formatDate(plug)} = E0.5`
-      : "Select a plug date to start calculation.";
+      ? `Calculation basis: pairing date ${formatDate(parseISO(state.pairingDate))}; plug date ${formatDate(plug)} = E0.5`
+      : "Enter a pairing date to start calculation.";
 
     const cards = [
+      getCard("Pairing date", events, "pairing"),
       getCard("Plug date / E0.5", events, "plug"),
       getCard("E14.5 IUE", events, "iue145"),
       getCard("E15.5 IUE", events, "iue155"),
@@ -253,7 +228,7 @@
 
   function getCard(label, events, id) {
     const event = events.find((candidate) => candidate.id === id);
-    if (!event) return { label, date: "Not set", rule: "Waiting for plug date." };
+    if (!event) return { label, date: "Not set", rule: "Waiting for pairing date." };
     return {
       label,
       date: formatEventDate(event),
@@ -270,14 +245,14 @@
   }
 
   function updateSyncState(events) {
-    const hasEvents = events.some((event) => event.id !== "pairing");
+    const hasEvents = events.length > 0;
     if (!cfg.microsoftClientId) {
       els.syncStatus.textContent = "Microsoft Client ID is required";
       els.syncButton.disabled = true;
       return;
     }
     if (!hasEvents) {
-      els.syncStatus.textContent = "Select a plug date";
+      els.syncStatus.textContent = "Enter a pairing date";
       els.syncButton.disabled = true;
       return;
     }
@@ -286,7 +261,7 @@
   }
 
   async function syncToOutlook() {
-    const events = buildEvents().filter((event) => event.id !== "pairing");
+    const events = buildEvents();
     if (!events.length) return;
     if (!window.msal || !cfg.microsoftClientId) return;
 
@@ -347,7 +322,7 @@
       subject: event.title,
       body: {
         contentType: "HTML",
-        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Plug Date / IUE / Two-Photon Calendar.</p>`,
+        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Pairing / IUE / Two-Photon Calendar.</p>`,
       },
       start: {
         dateTime: `${date}T00:00:00`,
@@ -378,11 +353,6 @@
     }
   }
 
-  function selectedMode() {
-    const checked = els.dateModes.find((input) => input.checked);
-    return checked ? checked.value : "plug";
-  }
-
   function eventIncludesDate(event, date) {
     const start = stripTime(event.date);
     const end = stripTime(event.endDate || event.date);
@@ -403,6 +373,10 @@
 
   function addMonths(date, months) {
     return new Date(date.getFullYear(), date.getMonth() + months, 1);
+  }
+
+  function calculatedPlugDate() {
+    return addDays(parseISO(state.pairingDate), 1);
   }
 
   function parseISO(value) {
