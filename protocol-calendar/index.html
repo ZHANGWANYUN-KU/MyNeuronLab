@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pairing / Plug P0 / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260627-p0">
+    <title>Plug E0 / IUE / Two-Photon Calendar</title>
+    <link rel="stylesheet" href="./style.css?v=20260627-e0-p0">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260627-p0"></script>
-    <script defer src="./calendar.js?v=20260627-p0"></script>
+    <script defer src="./calendar-config.js?v=20260627-e0-p0"></script>
+    <script defer src="./calendar.js?v=20260627-e0-p0"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -15,24 +15,25 @@
         <aside class="control-panel" aria-label="Experiment date settings">
           <div class="brand-block">
             <p class="eyebrow">S1 two-photon protocol</p>
-            <h1>Pairing / Plug P0 / Two-Photon Calendar</h1>
+            <h1>Plug E0 / IUE / Two-Photon Calendar</h1>
           </div>
 
-          <div class="field-group" id="pairingField">
-            <label class="field-label" for="pairingDate">Pairing date</label>
-            <input class="date-input" type="date" id="pairingDate">
-            <p class="hint">Enter the pairing date only. The plug date is automatically calculated as the next day morning and treated as P0.</p>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="plugDate">Calculated plug date / P0</label>
-            <input class="date-input" type="date" id="plugDate" readonly>
+          <div class="field-group" id="plugField">
+            <label class="field-label" for="plugDate">Plug date / E0</label>
+            <input class="date-input" type="date" id="plugDate">
+            <p class="hint">Enter the day the plug is found. This date is treated as E0 for IUE planning.</p>
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="birthDate">Estimated birth date</label>
+            <label class="field-label" for="birthDate">Expected birth date</label>
             <input class="date-input" type="date" id="birthDate" readonly>
-            <p class="hint">Automatically calculated as plug date / P0 +20 days.</p>
+            <p class="hint">Automatically calculated as plug date / E0 +20 days.</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="actualBirthDate">Actual birth date / P0</label>
+            <input class="date-input" type="date" id="actualBirthDate">
+            <p class="hint">Optional. Once pups are born, enter the real birth date so P13/P14 imaging recalculates from actual P0.</p>
           </div>
 
           <div class="action-row">
@@ -76,7 +77,7 @@
       <section class="summary-band" aria-label="Calculation results">
         <div class="summary-header">
           <h2>Calculation Results</h2>
-            <p id="basisText">Enter a pairing date to start calculation.</p>
+            <p id="basisText">Enter a plug date to start calculation.</p>
         </div>
         <div class="result-grid" id="resultGrid"></div>
       </section>

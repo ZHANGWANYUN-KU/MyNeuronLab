@@ -1,13 +1,12 @@
 (function () {
-  const MS_PER_DAY = 24 * 60 * 60 * 1000;
   const STORAGE_KEY = "protocol-calendar-state-v1";
   const cfg = window.PROTOCOL_CALENDAR_CONFIG || {};
 
   const els = {
-    pairingField: document.getElementById("pairingField"),
-    pairingDate: document.getElementById("pairingDate"),
+    plugField: document.getElementById("plugField"),
     plugDate: document.getElementById("plugDate"),
     birthDate: document.getElementById("birthDate"),
+    actualBirthDate: document.getElementById("actualBirthDate"),
     todayButton: document.getElementById("todayButton"),
     clearButton: document.getElementById("clearButton"),
     syncButton: document.getElementById("syncButton"),
@@ -28,7 +27,8 @@
 
   const today = stripTime(new Date());
   let state = {
-    pairingDate: toISO(today),
+    plugDate: toISO(today),
+    actualBirthDate: "",
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -44,12 +44,17 @@
   }
 
   function attachEvents() {
-    els.pairingDate.addEventListener("change", () => {
-      state.pairingDate = els.pairingDate.value;
-      if (state.pairingDate) {
-        const plug = calculatedPlugDate();
+    els.plugDate.addEventListener("change", () => {
+      state.plugDate = els.plugDate.value;
+      if (state.plugDate) {
+        const plug = parseISO(state.plugDate);
         state.visibleMonth = new Date(plug.getFullYear(), plug.getMonth(), 1);
       }
+      persistAndRender();
+    });
+
+    els.actualBirthDate.addEventListener("change", () => {
+      state.actualBirthDate = els.actualBirthDate.value;
       persistAndRender();
     });
 
@@ -60,7 +65,8 @@
 
     els.clearButton.addEventListener("click", () => {
       state = {
-        pairingDate: "",
+        plugDate: "",
+        actualBirthDate: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
       persistAndRender();
@@ -87,9 +93,9 @@
   }
 
   function syncControlsFromState() {
-    els.pairingDate.value = state.pairingDate || "";
-    els.plugDate.value = state.pairingDate ? toISO(calculatedPlugDate()) : "";
-    els.birthDate.value = state.pairingDate ? toISO(addDays(calculatedPlugDate(), 20)) : "";
+    els.plugDate.value = state.plugDate || "";
+    els.birthDate.value = state.plugDate ? toISO(expectedBirthDate()) : "";
+    els.actualBirthDate.value = state.actualBirthDate || "";
   }
 
   function render() {
@@ -101,46 +107,61 @@
 
   function buildEvents() {
     const events = [];
-    if (!state.pairingDate) return events;
+    if (!state.plugDate) return events;
 
-    events.push({
-      id: "pairing",
-      title: "Pairing",
-      type: "pairing",
-      date: parseISO(state.pairingDate),
-      rule: "User-entered pairing date.",
-    });
+    const plug = parseISO(state.plugDate);
+    const expectedBirth = expectedBirthDate();
+    const actualBirth = actualBirthDate();
+    const imagingAnchor = actualBirth || expectedBirth;
+    const imagingSource = actualBirth ? "actual birth date / P0" : "expected birth date";
 
-    const plug = calculatedPlugDate();
     events.push({
       id: "plug",
-      title: "Plug date / P0",
+      title: "Plug date / E0",
       type: "plug",
       date: plug,
-      rule: "Automatically calculated as pairing date + 1 day, then defined as P0.",
+      rule: "User-entered plug date. This date is defined as E0.",
     });
 
     events.push({
-      id: "birth",
-      title: "Estimated birth date",
-      type: "birth",
-      date: addDays(plug, 20),
-      rule: "Estimated birth date is calculated as plug date / P0 + 20 days.",
+      id: "iue-e15",
+      title: "IUE / E15",
+      type: "iue",
+      date: addDays(plug, 15),
+      rule: "IUE is calculated as plug date / E0 + 15 days.",
     });
+
+    events.push({
+      id: "expected-birth",
+      title: "Expected birth date",
+      type: "birth",
+      date: expectedBirth,
+      rule: "Expected birth date is calculated as plug date / E0 + 20 days.",
+    });
+
+    if (actualBirth) {
+      events.push({
+        id: "actual-birth-p0",
+        title: "Actual birth / P0",
+        type: "birth",
+        date: actualBirth,
+        rule: "User-entered actual birth date. This date is defined as P0 for imaging.",
+      });
+    }
 
     events.push({
       id: "p13",
       title: "P13 two-photon imaging",
       type: "imaging",
-      date: addDays(plug, 13),
-      rule: "P13 is calculated as plug date / P0 + 13 days.",
+      date: addDays(imagingAnchor, 13),
+      rule: `P13 is calculated as ${imagingSource} + 13 days.`,
     });
     events.push({
       id: "p14",
       title: "P14 two-photon imaging",
       type: "imaging",
-      date: addDays(plug, 14),
-      rule: "P14 is calculated as plug date / P0 + 14 days.",
+      date: addDays(imagingAnchor, 14),
+      rule: `P14 is calculated as ${imagingSource} + 14 days.`,
     });
 
     return events;
@@ -186,15 +207,21 @@
 
   function renderResults(events) {
     els.resultGrid.innerHTML = "";
-    const plug = state.pairingDate ? calculatedPlugDate() : null;
+    const plug = state.plugDate ? parseISO(state.plugDate) : null;
+    const actualBirth = actualBirthDate();
     els.basisText.textContent = plug
-      ? `Calculation basis: pairing date ${formatDate(parseISO(state.pairingDate))}; plug date ${formatDate(plug)} = P0`
-      : "Enter a pairing date to start calculation.";
+      ? `Calculation basis: plug date ${formatDate(plug)} = E0; imaging uses ${
+          actualBirth ? `actual birth / P0 ${formatDate(actualBirth)}` : "expected birth date"
+        }`
+      : "Enter a plug date to start calculation.";
 
     const cards = [
-      getCard("Pairing date", events, "pairing"),
-      getCard("Plug date / P0", events, "plug"),
-      getCard("Estimated birth date", events, "birth"),
+      getCard("Plug date / E0", events, "plug"),
+      getCard("IUE / E15", events, "iue-e15"),
+      getCard("Expected birth date", events, "expected-birth"),
+      actualBirth
+        ? getCard("Actual birth / P0", events, "actual-birth-p0")
+        : { label: "Actual birth / P0", date: "Not set", rule: "Optional. Enter the real birth date to recalibrate P13/P14." },
       getCard("P13 two-photon", events, "p13"),
       getCard("P14 two-photon", events, "p14"),
     ];
@@ -305,7 +332,7 @@
       subject: event.title,
       body: {
         contentType: "HTML",
-        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Pairing / Plug P0 / Two-Photon Calendar.</p>`,
+        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Plug E0 / IUE / Two-Photon Calendar.</p>`,
       },
       start: {
         dateTime: `${date}T00:00:00`,
@@ -358,8 +385,12 @@
     return new Date(date.getFullYear(), date.getMonth() + months, 1);
   }
 
-  function calculatedPlugDate() {
-    return addDays(parseISO(state.pairingDate), 1);
+  function expectedBirthDate() {
+    return addDays(parseISO(state.plugDate), 20);
+  }
+
+  function actualBirthDate() {
+    return state.actualBirthDate ? parseISO(state.actualBirthDate) : null;
   }
 
   function parseISO(value) {
@@ -405,13 +436,18 @@
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
+      const migratedPlugDate =
+        saved.plugDate || (saved.pairingDate ? toISO(addDays(parseISO(saved.pairingDate), 1)) : state.plugDate);
       state = {
         ...state,
         ...saved,
+        plugDate: migratedPlugDate,
+        actualBirthDate: saved.actualBirthDate || "",
         visibleMonth: saved.visibleMonth
           ? new Date(parseISO(saved.visibleMonth).getFullYear(), parseISO(saved.visibleMonth).getMonth(), 1)
           : state.visibleMonth,
       };
+      delete state.pairingDate;
     } catch (_) {
       localStorage.removeItem(STORAGE_KEY);
     }
