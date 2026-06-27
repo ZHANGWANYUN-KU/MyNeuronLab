@@ -238,7 +238,7 @@
 
   function getCard(label, events, id) {
     const event = events.find((candidate) => candidate.id === id);
-    if (!event) return { label, date: "Not set", rule: "Waiting for pairing date." };
+    if (!event) return { label, date: "Not set", rule: "Waiting for plug date." };
     return {
       label,
       date: formatEventDate(event),
@@ -256,24 +256,26 @@
 
   function updateSyncState(events) {
     const hasEvents = events.length > 0;
-    if (!cfg.microsoftClientId) {
-      els.syncStatus.textContent = "Microsoft Client ID is required";
-      els.syncButton.disabled = true;
-      return;
-    }
     if (!hasEvents) {
-      els.syncStatus.textContent = "Enter a pairing date";
+      els.syncStatus.textContent = "Enter a plug date";
       els.syncButton.disabled = true;
       return;
     }
-    els.syncStatus.textContent = "Ready to sync all-day events with 1-day reminders";
+    els.syncStatus.textContent = cfg.microsoftClientId
+      ? "Ready to sync directly with Outlook"
+      : "Downloads an .ics file for Google Calendar or Outlook";
+    els.syncButton.textContent = cfg.microsoftClientId ? "Sync to Outlook" : "Download .ics file";
     els.syncButton.disabled = false;
   }
 
   async function syncToOutlook() {
     const events = buildEvents();
     if (!events.length) return;
-    if (!window.msal || !cfg.microsoftClientId) return;
+    if (!window.msal || !cfg.microsoftClientId) {
+      downloadICS(events);
+      els.syncStatus.textContent = `Downloaded ${events.length} markers. Import the .ics file into Google Calendar or Outlook.`;
+      return;
+    }
 
     els.syncButton.disabled = true;
     els.syncStatus.textContent = "Connecting to Microsoft...";
@@ -289,6 +291,53 @@
     } finally {
       els.syncButton.disabled = false;
     }
+  }
+
+  function downloadICS(events) {
+    const content = buildICS(events);
+    const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+    const link = document.createElement("a");
+    const plug = state.plugDate || toISO(today);
+    link.href = URL.createObjectURL(blob);
+    link.download = `protocol-calendar-${plug}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(link.href);
+  }
+
+  function buildICS(events) {
+    const timestamp = formatICSDateTime(new Date());
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//MyNeuronLab//Protocol Calendar//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+    ];
+
+    events.forEach((event) => {
+      const start = toISOCompact(event.date);
+      const end = toISOCompact(addDays(event.endDate || event.date, 1));
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${escapeICS(event.id)}-${start}@myneuronlab`,
+        `DTSTAMP:${timestamp}`,
+        `SUMMARY:${escapeICS(event.title)}`,
+        `DESCRIPTION:${escapeICS(event.rule)}`,
+        `DTSTART;VALUE=DATE:${start}`,
+        `DTEND;VALUE=DATE:${end}`,
+        "BEGIN:VALARM",
+        "TRIGGER:-P1D",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeICS(event.title)}`,
+        "END:VALARM",
+        "END:VEVENT"
+      );
+    });
+
+    lines.push("END:VCALENDAR");
+    return `${lines.join("\r\n")}\r\n`;
   }
 
   async function getGraphToken() {
@@ -405,6 +454,20 @@
     return `${year}-${month}-${day}`;
   }
 
+  function toISOCompact(date) {
+    return toISO(date).replace(/-/g, "");
+  }
+
+  function formatICSDateTime(date) {
+    const year = date.getUTCFullYear();
+    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(date.getUTCDate()).padStart(2, "0");
+    const hours = String(date.getUTCHours()).padStart(2, "0");
+    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
+    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  }
+
   function stripTime(date) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
@@ -460,5 +523,13 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function escapeICS(value) {
+    return String(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/;/g, "\\;")
+      .replace(/,/g, "\\,");
   }
 })();
