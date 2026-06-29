@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pairing / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260629-editable">
+    <link rel="stylesheet" href="./style.css?v=20260629-calendarpick">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260629-editable"></script>
-    <script defer src="./calendar.js?v=20260629-editable"></script>
+    <script defer src="./calendar-config.js?v=20260629-calendarpick"></script>
+    <script defer src="./calendar.js?v=20260629-calendarpick"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -22,6 +22,20 @@
             <label class="field-label" for="pairingDate">Pairing date</label>
             <input class="date-input" type="date" id="pairingDate">
             <p class="hint">Edit any date below. The calendar will recalculate the same protocol timeline automatically.</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="editTarget">Calendar click edits</label>
+            <select class="date-input" id="editTarget">
+              <option value="-1">Pairing date</option>
+              <option value="0">Plug date / E0.5</option>
+              <option value="14">E14.5 IUE</option>
+              <option value="15">E15.5 IUE</option>
+              <option value="20">Birth date / P1</option>
+              <option value="32">P13 two-photon</option>
+              <option value="33">P14 two-photon</option>
+            </select>
+            <p class="hint">Choose a field here, then click any day in the calendar to set it manually.</p>
           </div>
 
           <div class="field-group">

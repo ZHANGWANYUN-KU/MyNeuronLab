@@ -5,6 +5,7 @@
 
   const els = {
     pairingField: document.getElementById("pairingField"),
+    editTarget: document.getElementById("editTarget"),
     pairingDate: document.getElementById("pairingDate"),
     plugDate: document.getElementById("plugDate"),
     iue145Date: document.getElementById("iue145Date"),
@@ -33,6 +34,7 @@
   const today = stripTime(new Date());
   let state = {
     plugDate: toISO(addDays(today, 1)),
+    editOffset: -1,
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -55,6 +57,12 @@
     attachDateRecalculator(els.birthDate, 20);
     attachDateRecalculator(els.p13Date, 32);
     attachDateRecalculator(els.p14Date, 33);
+
+    els.editTarget.addEventListener("change", () => {
+      state.editOffset = Number(els.editTarget.value);
+      saveState();
+      render();
+    });
 
     els.todayButton.addEventListener("click", () => {
       state.visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -114,6 +122,7 @@
 
   function syncControlsFromState() {
     const plug = state.plugDate ? parseISO(state.plugDate) : null;
+    els.editTarget.value = String(state.editOffset ?? -1);
     els.pairingDate.value = plug ? toISO(addDays(plug, -1)) : "";
     els.plugDate.value = plug ? toISO(plug) : "";
     els.iue145Date.value = plug ? toISO(addDays(plug, 14)) : "";
@@ -208,9 +217,17 @@
       const dayEvents = events.filter((event) => eventIncludesDate(event, day));
       const cell = document.createElement("section");
       cell.className = "day-cell";
+      cell.tabIndex = 0;
       if (day.getMonth() !== visible.getMonth()) cell.classList.add("outside");
       if (sameDay(day, today)) cell.classList.add("today");
       cell.setAttribute("aria-label", formatDate(day));
+      cell.addEventListener("click", () => setDateFromCalendar(day));
+      cell.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          setDateFromCalendar(day);
+        }
+      });
 
       const number = document.createElement("span");
       number.className = "day-number";
@@ -224,12 +241,23 @@
         button.type = "button";
         button.className = `event-pill event-${event.type}`;
         button.textContent = event.endDate ? `${event.title} -` : event.title;
-        button.addEventListener("click", () => showEvent(event));
+        button.addEventListener("click", (clickEvent) => {
+          clickEvent.stopPropagation();
+          showEvent(event);
+        });
         list.appendChild(button);
       });
       cell.appendChild(list);
       els.calendarGrid.appendChild(cell);
     }
+  }
+
+  function setDateFromCalendar(date) {
+    const offset = Number(state.editOffset ?? -1);
+    const plug = addDays(date, -offset);
+    state.plugDate = toISO(plug);
+    state.visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    persistAndRender();
   }
 
   function renderResults(events) {

@@ -32,7 +32,8 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
 }
 
@@ -270,6 +271,12 @@ input {
   border-bottom: 1px solid var(--line);
   background: white;
   overflow: hidden;
+  cursor: pointer;
+}
+
+.day-cell:focus {
+  outline: 2px solid var(--teal);
+  outline-offset: -2px;
 }
 
 .day-cell.outside {
