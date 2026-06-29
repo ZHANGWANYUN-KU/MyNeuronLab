@@ -6,6 +6,9 @@
   const els = {
     pairingField: document.getElementById("pairingField"),
     editTarget: document.getElementById("editTarget"),
+    selectedDateText: document.getElementById("selectedDateText"),
+    saveMarkButton: document.getElementById("saveMarkButton"),
+    cancelMarkButton: document.getElementById("cancelMarkButton"),
     pairingDate: document.getElementById("pairingDate"),
     plugDate: document.getElementById("plugDate"),
     iue145Date: document.getElementById("iue145Date"),
@@ -22,6 +25,8 @@
     monthTitle: document.getElementById("monthTitle"),
     calendarGrid: document.getElementById("calendarGrid"),
     resultGrid: document.getElementById("resultGrid"),
+    savedStatsText: document.getElementById("savedStatsText"),
+    savedList: document.getElementById("savedList"),
     basisText: document.getElementById("basisText"),
     eventDialog: document.getElementById("eventDialog"),
     closeDialog: document.getElementById("closeDialog"),
@@ -35,6 +40,8 @@
   let state = {
     plugDate: toISO(addDays(today, 1)),
     editOffset: -1,
+    pendingSelection: null,
+    savedMarks: [],
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -69,9 +76,15 @@
       persistAndRender();
     });
 
+    els.saveMarkButton.addEventListener("click", saveCurrentMark);
+    els.cancelMarkButton.addEventListener("click", cancelCurrentMark);
+
     els.clearButton.addEventListener("click", () => {
       state = {
         plugDate: "",
+        editOffset: state.editOffset,
+        pendingSelection: null,
+        savedMarks: state.savedMarks || [],
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
       persistAndRender();
@@ -101,6 +114,11 @@
       const selected = parseISO(input.value);
       const plug = addDays(selected, -offsetFromPlug);
       state.plugDate = toISO(plug);
+      state.editOffset = offsetFromPlug;
+      state.pendingSelection = {
+        date: toISO(selected),
+        offset: offsetFromPlug,
+      };
       state.visibleMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
       persistAndRender();
     };
@@ -136,6 +154,8 @@
     const events = buildEvents();
     renderCalendar(events);
     renderResults(events);
+    renderSelectedMark();
+    renderSavedMarks();
     updateSyncState(events);
   }
 
@@ -215,11 +235,14 @@
     for (let i = 0; i < 42; i += 1) {
       const day = addDays(gridStart, i);
       const dayEvents = events.filter((event) => eventIncludesDate(event, day));
+      const dayMarks = savedMarksForDay(day);
       const cell = document.createElement("section");
       cell.className = "day-cell";
       cell.tabIndex = 0;
       if (day.getMonth() !== visible.getMonth()) cell.classList.add("outside");
       if (sameDay(day, today)) cell.classList.add("today");
+      if (isPendingDay(day)) cell.classList.add("pending-day");
+      if (dayMarks.length) cell.classList.add("saved-day");
       cell.setAttribute("aria-label", formatDate(day));
       cell.addEventListener("click", () => setDateFromCalendar(day));
       cell.addEventListener("keydown", (event) => {
@@ -247,6 +270,20 @@
         });
         list.appendChild(button);
       });
+      dayMarks.forEach((mark) => {
+        const saved = document.createElement("button");
+        saved.type = "button";
+        saved.className = `saved-pill event-${typeForOffset(mark.offset)}`;
+        saved.textContent = `Saved: ${labelForOffset(mark.offset)}`;
+        saved.addEventListener("click", (clickEvent) => {
+          clickEvent.stopPropagation();
+          state.editOffset = mark.offset;
+          state.pendingSelection = { date: mark.date, offset: mark.offset };
+          saveState();
+          render();
+        });
+        list.appendChild(saved);
+      });
       cell.appendChild(list);
       els.calendarGrid.appendChild(cell);
     }
@@ -256,7 +293,32 @@
     const offset = Number(state.editOffset ?? -1);
     const plug = addDays(date, -offset);
     state.plugDate = toISO(plug);
+    state.pendingSelection = {
+      date: toISO(date),
+      offset,
+    };
     state.visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    persistAndRender();
+  }
+
+  function saveCurrentMark() {
+    if (!state.pendingSelection) return;
+    const mark = {
+      id: `${state.pendingSelection.offset}:${state.pendingSelection.date}`,
+      date: state.pendingSelection.date,
+      offset: Number(state.pendingSelection.offset),
+      savedAt: new Date().toISOString(),
+    };
+    const marks = Array.isArray(state.savedMarks) ? state.savedMarks : [];
+    state.savedMarks = [mark, ...marks.filter((item) => item.id !== mark.id)];
+    persistAndRender();
+  }
+
+  function cancelCurrentMark() {
+    if (!state.pendingSelection) return;
+    const id = `${state.pendingSelection.offset}:${state.pendingSelection.date}`;
+    state.savedMarks = (state.savedMarks || []).filter((mark) => mark.id !== id);
+    state.pendingSelection = null;
     persistAndRender();
   }
 
@@ -284,6 +346,66 @@
         card.date
       )}</span><small>${escapeHTML(card.rule)}</small>`;
       els.resultGrid.appendChild(node);
+    });
+  }
+
+  function renderSelectedMark() {
+    if (!state.pendingSelection) {
+      els.selectedDateText.textContent = "No date selected yet.";
+      els.saveMarkButton.disabled = true;
+      els.cancelMarkButton.disabled = true;
+      return;
+    }
+    const date = parseISO(state.pendingSelection.date);
+    const label = labelForOffset(Number(state.pendingSelection.offset));
+    const exists = (state.savedMarks || []).some(
+      (mark) =>
+        mark.date === state.pendingSelection.date &&
+        Number(mark.offset) === Number(state.pendingSelection.offset)
+    );
+    els.selectedDateText.textContent = `${label}: ${formatDate(date)}${exists ? " (saved)" : ""}`;
+    els.saveMarkButton.disabled = exists;
+    els.cancelMarkButton.disabled = false;
+  }
+
+  function renderSavedMarks() {
+    const marks = [...(state.savedMarks || [])].sort((a, b) =>
+      a.date === b.date ? Number(a.offset) - Number(b.offset) : a.date.localeCompare(b.date)
+    );
+    els.savedList.innerHTML = "";
+    if (!marks.length) {
+      els.savedStatsText.textContent = "No saved marks.";
+      return;
+    }
+
+    const counts = marks.reduce((acc, mark) => {
+      const label = labelForOffset(Number(mark.offset));
+      acc[label] = (acc[label] || 0) + 1;
+      return acc;
+    }, {});
+    els.savedStatsText.textContent = `${marks.length} total | ${Object.entries(counts)
+      .map(([label, count]) => `${label}: ${count}`)
+      .join(" | ")}`;
+
+    marks.forEach((mark) => {
+      const item = document.createElement("article");
+      item.className = "saved-item";
+      const label = labelForOffset(Number(mark.offset));
+      item.innerHTML = `<strong>${escapeHTML(label)}</strong><span>${escapeHTML(
+        formatDate(parseISO(mark.date))
+      )}</span><button type="button">Remove</button>`;
+      item.querySelector("button").addEventListener("click", () => {
+        state.savedMarks = (state.savedMarks || []).filter((candidate) => candidate.id !== mark.id);
+        if (
+          state.pendingSelection &&
+          state.pendingSelection.date === mark.date &&
+          Number(state.pendingSelection.offset) === Number(mark.offset)
+        ) {
+          state.pendingSelection = null;
+        }
+        persistAndRender();
+      });
+      els.savedList.appendChild(item);
     });
   }
 
@@ -319,6 +441,36 @@
     }
     els.syncStatus.textContent = "Ready to sync all-day events with 1-day reminders";
     els.syncButton.disabled = false;
+  }
+
+  function savedMarksForDay(day) {
+    const iso = toISO(day);
+    return (state.savedMarks || []).filter((mark) => mark.date === iso);
+  }
+
+  function isPendingDay(day) {
+    return state.pendingSelection && state.pendingSelection.date === toISO(day);
+  }
+
+  function labelForOffset(offset) {
+    const labels = {
+      "-1": "Pairing date",
+      0: "Plug date / E0.5",
+      14: "E14.5 IUE",
+      15: "E15.5 IUE",
+      20: "Birth date / P1",
+      32: "P13 two-photon",
+      33: "P14 two-photon",
+    };
+    return labels[String(offset)] || "Protocol date";
+  }
+
+  function typeForOffset(offset) {
+    if (offset === -1) return "pairing";
+    if (offset === 0) return "plug";
+    if (offset === 14 || offset === 15) return "iue";
+    if (offset === 20) return "birth";
+    return "imaging";
   }
 
   async function syncToOutlook() {
