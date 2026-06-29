@@ -84,7 +84,7 @@
   }
 
   function attachDateRecalculator(input, offsetFromPlug) {
-    input.addEventListener("change", () => {
+    const recalculate = () => {
       if (!input.value) {
         state.plugDate = "";
         persistAndRender();
@@ -95,7 +95,15 @@
       state.plugDate = toISO(plug);
       state.visibleMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
       persistAndRender();
+    };
+
+    input.addEventListener("click", () => {
+      if (typeof input.showPicker === "function") {
+        input.showPicker();
+      }
     });
+    input.addEventListener("input", recalculate);
+    input.addEventListener("change", recalculate);
   }
 
   function persistAndRender() {

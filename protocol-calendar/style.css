@@ -145,6 +145,13 @@ input {
   border-radius: 6px;
   background: var(--paper);
   color: var(--ink);
+  cursor: pointer;
+}
+
+.date-input:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(19, 123, 146, 0.15);
+  outline: none;
 }
 
 .hint {
