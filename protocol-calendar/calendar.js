@@ -390,11 +390,20 @@
     marks.forEach((mark) => {
       const item = document.createElement("article");
       item.className = "saved-item";
+      item.tabIndex = 0;
       const label = labelForOffset(Number(mark.offset));
       item.innerHTML = `<strong>${escapeHTML(label)}</strong><span>${escapeHTML(
         formatDate(parseISO(mark.date))
       )}</span><button type="button">Remove</button>`;
-      item.querySelector("button").addEventListener("click", () => {
+      item.addEventListener("click", () => focusSavedMark(mark));
+      item.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          focusSavedMark(mark);
+        }
+      });
+      item.querySelector("button").addEventListener("click", (event) => {
+        event.stopPropagation();
         state.savedMarks = (state.savedMarks || []).filter((candidate) => candidate.id !== mark.id);
         if (
           state.pendingSelection &&
@@ -428,10 +437,13 @@
   }
 
   function updateSyncState(events) {
-    const hasEvents = events.length > 0;
+    const hasEvents = exportableEvents(events).length > 0;
+    els.syncButton.textContent = cfg.microsoftClientId ? "Sync markers" : "Download .ics";
     if (!cfg.microsoftClientId) {
-      els.syncStatus.textContent = "Microsoft Client ID is required";
-      els.syncButton.disabled = true;
+      els.syncStatus.textContent = hasEvents
+        ? "Download saved marks as an .ics calendar file"
+        : "Enter or save dates before downloading";
+      els.syncButton.disabled = !hasEvents;
       return;
     }
     if (!hasEvents) {
@@ -473,10 +485,23 @@
     return "imaging";
   }
 
+  function focusSavedMark(mark) {
+    const date = parseISO(mark.date);
+    state.editOffset = Number(mark.offset);
+    state.pendingSelection = { date: mark.date, offset: Number(mark.offset) };
+    state.plugDate = toISO(addDays(date, -Number(mark.offset)));
+    state.visibleMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    persistAndRender();
+    els.calendarGrid.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
   async function syncToOutlook() {
-    const events = buildEvents();
+    const events = exportableEvents(buildEvents());
     if (!events.length) return;
-    if (!window.msal || !cfg.microsoftClientId) return;
+    if (!window.msal || !cfg.microsoftClientId) {
+      downloadIcsEvents(events);
+      return;
+    }
 
     els.syncButton.disabled = true;
     els.syncStatus.textContent = "Connecting to Microsoft...";
@@ -492,6 +517,68 @@
     } finally {
       els.syncButton.disabled = false;
     }
+  }
+
+  function exportableEvents(events) {
+    const saved = state.savedMarks || [];
+    if (!saved.length) return events;
+    return saved
+      .slice()
+      .sort((a, b) =>
+        a.date === b.date ? Number(a.offset) - Number(b.offset) : a.date.localeCompare(b.date)
+      )
+      .map((mark) => ({
+        id: `saved-${mark.id}`,
+        title: labelForOffset(Number(mark.offset)),
+        type: typeForOffset(Number(mark.offset)),
+        date: parseISO(mark.date),
+        rule: "Saved protocol date marker.",
+      }));
+  }
+
+  function downloadIcsEvents(events) {
+    const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//MyNeuronLab//Protocol Calendar//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+    ];
+
+    events.forEach((event, index) => {
+      const start = toICSDate(event.date);
+      const end = toICSDate(addDays(event.endDate || event.date, 1));
+      lines.push(
+        "BEGIN:VEVENT",
+        `UID:${start}-${index}@myneuronlab-protocol-calendar`,
+        `DTSTAMP:${stamp}`,
+        `DTSTART;VALUE=DATE:${start}`,
+        `DTEND;VALUE=DATE:${end}`,
+        `SUMMARY:${escapeICS(event.title)}`,
+        `DESCRIPTION:${escapeICS(event.rule || "Protocol calendar marker.")}`,
+        "BEGIN:VALARM",
+        "ACTION:DISPLAY",
+        `DESCRIPTION:${escapeICS(event.title)}`,
+        "TRIGGER:-P1D",
+        "END:VALARM",
+        "END:VEVENT"
+      );
+    });
+
+    lines.push("END:VCALENDAR");
+    const blob = new Blob([`${lines.join("\r\n")}\r\n`], {
+      type: "text/calendar;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `protocol-calendar-${toISO(today)}.ics`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+    els.syncStatus.textContent = `Downloaded ${events.length} calendar marker${events.length === 1 ? "" : "s"}`;
   }
 
   async function getGraphToken() {
@@ -600,6 +687,10 @@
     return `${year}-${month}-${day}`;
   }
 
+  function toICSDate(date) {
+    return toISO(date).replace(/-/g, "");
+  }
+
   function stripTime(date) {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate());
   }
@@ -650,5 +741,13 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
+  }
+
+  function escapeICS(value) {
+    return String(value)
+      .replace(/\\/g, "\\\\")
+      .replace(/\n/g, "\\n")
+      .replace(/,/g, "\\,")
+      .replace(/;/g, "\\;");
   }
 })();

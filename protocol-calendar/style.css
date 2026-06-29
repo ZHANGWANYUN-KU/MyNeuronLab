@@ -483,6 +483,14 @@ select {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fbfcfd;
+  cursor: pointer;
+}
+
+.saved-item:focus,
+.saved-item:hover {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(19, 123, 146, 0.12);
+  outline: none;
 }
 
 .saved-item strong,
