@@ -5,6 +5,10 @@
   const els = {
     plugField: document.getElementById("plugField"),
     plugDate: document.getElementById("plugDate"),
+    pairingDate: document.getElementById("pairingDate"),
+    pairingTime: document.getElementById("pairingTime"),
+    iueDate: document.getElementById("iueDate"),
+    iueTime: document.getElementById("iueTime"),
     birthDate: document.getElementById("birthDate"),
     actualBirthDate: document.getElementById("actualBirthDate"),
     saveButton: document.getElementById("saveButton"),
@@ -32,6 +36,8 @@
   const today = stripTime(new Date());
   let state = {
     plugDate: toISO(today),
+    pairingTime: "",
+    iueTime: "",
     actualBirthDate: "",
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
     savedRecords: [],
@@ -39,6 +45,8 @@
     nextRecordNumber: 1,
     lastSavedDraft: {
       plugDate: toISO(today),
+      pairingTime: "",
+      iueTime: "",
       actualBirthDate: "",
     },
   };
@@ -69,6 +77,16 @@
       persistAndRender();
     });
 
+    els.pairingTime.addEventListener("change", () => {
+      state.pairingTime = els.pairingTime.value;
+      persistAndRender();
+    });
+
+    els.iueTime.addEventListener("change", () => {
+      state.iueTime = els.iueTime.value;
+      persistAndRender();
+    });
+
     els.saveButton.addEventListener("click", saveCurrentRecord);
     els.cancelButton.addEventListener("click", cancelDraftChanges);
 
@@ -80,6 +98,8 @@
     els.clearButton.addEventListener("click", () => {
       state = {
         plugDate: "",
+        pairingTime: "",
+        iueTime: "",
         actualBirthDate: "",
         loadedRecordId: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
@@ -112,6 +132,10 @@
 
   function syncControlsFromState() {
     els.plugDate.value = state.plugDate || "";
+    els.pairingDate.value = state.plugDate ? toISO(pairingDate()) : "";
+    els.pairingTime.value = state.pairingTime || "";
+    els.iueDate.value = state.plugDate ? toISO(iueDate()) : "";
+    els.iueTime.value = state.iueTime || "";
     els.birthDate.value = state.plugDate ? toISO(expectedBirthDate()) : "";
     els.actualBirthDate.value = state.actualBirthDate || "";
   }
@@ -129,10 +153,21 @@
     if (!state.plugDate) return events;
 
     const plug = parseISO(state.plugDate);
+    const pairing = pairingDate();
+    const iue = iueDate();
     const expectedBirth = expectedBirthDate();
     const actualBirth = actualBirthDate();
     const imagingAnchor = actualBirth || expectedBirth;
     const imagingSource = actualBirth ? "actual birth date / P0" : "expected birth date";
+
+    events.push({
+      id: "pairing",
+      title: "Pairing",
+      type: "pairing",
+      date: pairing,
+      time: state.pairingTime || "",
+      rule: "Pairing date is calculated as plug date / E0 - 1 day.",
+    });
 
     events.push({
       id: "plug",
@@ -146,7 +181,8 @@
       id: "iue-e15",
       title: "IUE / E15",
       type: "iue",
-      date: addDays(plug, 15),
+      date: iue,
+      time: state.iueTime || "",
       rule: "IUE is calculated as plug date / E0 + 15 days.",
     });
 
@@ -239,6 +275,7 @@
       : "Enter a plug date to start calculation.";
 
     const cards = [
+      getCard("Pairing", events, "pairing"),
       getCard("Plug date / E0", events, "plug"),
       getCard("IUE / E15", events, "iue-e15"),
       getCard("Expected birth date", events, "expected-birth"),
@@ -315,6 +352,7 @@
   function getSavedRows(events, record) {
     return [
       { label: "Plug/E0", date: getSavedDate(events, "plug") },
+      { label: "Pairing", date: getSavedDate(events, "pairing") },
       { label: "IUE/E15", date: getSavedDate(events, "iue-e15") },
       { label: "Expected birth", date: getSavedDate(events, "expected-birth") },
       { label: "Actual P0", date: record.actualBirthDate ? getSavedDate(events, "actual-birth-p0") : "Not set" },
@@ -325,7 +363,7 @@
 
   function getSavedDate(events, id) {
     const event = events.find((candidate) => candidate.id === id);
-    return event ? toISO(event.date) : "Not set";
+    return event ? formatRecordDate(event) : "Not set";
   }
 
   function saveCurrentRecord() {
@@ -337,6 +375,8 @@
       id: `record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       label: `Protocol #${number}`,
       plugDate: state.plugDate,
+      pairingTime: state.pairingTime || "",
+      iueTime: state.iueTime || "",
       actualBirthDate: state.actualBirthDate || "",
       createdAt: now,
       updatedAt: now,
@@ -354,6 +394,8 @@
     if (!record) return;
 
     state.plugDate = record.plugDate;
+    state.pairingTime = record.pairingTime || "";
+    state.iueTime = record.iueTime || "";
     state.actualBirthDate = record.actualBirthDate || "";
     state.loadedRecordId = record.id;
     state.visibleMonth = new Date(parseISO(record.plugDate).getFullYear(), parseISO(record.plugDate).getMonth(), 1);
@@ -373,6 +415,8 @@
   function cancelDraftChanges() {
     const draft = state.lastSavedDraft || {};
     state.plugDate = draft.plugDate || "";
+    state.pairingTime = draft.pairingTime || "";
+    state.iueTime = draft.iueTime || "";
     state.actualBirthDate = draft.actualBirthDate || "";
     if (state.plugDate) {
       const plug = parseISO(state.plugDate);
@@ -384,6 +428,8 @@
   function rememberCurrentDraft() {
     state.lastSavedDraft = {
       plugDate: state.plugDate || "",
+      pairingTime: state.pairingTime || "",
+      iueTime: state.iueTime || "",
       actualBirthDate: state.actualBirthDate || "",
     };
   }
@@ -395,12 +441,18 @@
   function withDraft(record, callback) {
     const original = {
       plugDate: state.plugDate,
+      pairingTime: state.pairingTime,
+      iueTime: state.iueTime,
       actualBirthDate: state.actualBirthDate,
     };
     state.plugDate = record.plugDate;
+    state.pairingTime = record.pairingTime || "";
+    state.iueTime = record.iueTime || "";
     state.actualBirthDate = record.actualBirthDate || "";
     const result = callback();
     state.plugDate = original.plugDate;
+    state.pairingTime = original.pairingTime;
+    state.iueTime = original.iueTime;
     state.actualBirthDate = original.actualBirthDate;
     return result;
   }
@@ -486,16 +538,20 @@
     ];
 
     events.forEach((event) => {
-      const start = toISOCompact(event.date);
-      const end = toISOCompact(addDays(event.endDate || event.date, 1));
+      const isTimed = Boolean(event.time);
+      const timedEnd = isTimed ? addMinutesToDateTime(event.date, event.time, 60) : null;
+      const start = isTimed ? formatICSLocalDateTime(event.date, event.time) : toISOCompact(event.date);
+      const end = isTimed
+        ? formatICSLocalDateTime(timedEnd.date, timedEnd.time)
+        : toISOCompact(addDays(event.endDate || event.date, 1));
       lines.push(
         "BEGIN:VEVENT",
         `UID:${escapeICS(event.id)}-${start}@myneuronlab`,
         `DTSTAMP:${timestamp}`,
         `SUMMARY:${escapeICS(event.title)}`,
         `DESCRIPTION:${escapeICS(event.rule)}`,
-        `DTSTART;VALUE=DATE:${start}`,
-        `DTEND;VALUE=DATE:${end}`,
+        isTimed ? `DTSTART;TZID=Asia/Tokyo:${start}` : `DTSTART;VALUE=DATE:${start}`,
+        isTimed ? `DTEND;TZID=Asia/Tokyo:${end}` : `DTEND;VALUE=DATE:${end}`,
         "BEGIN:VALARM",
         "TRIGGER:-P1D",
         "ACTION:DISPLAY",
@@ -546,6 +602,8 @@
   async function createOutlookEvent(token, event) {
     const date = toISO(event.date);
     const end = toISO(addDays(event.endDate || event.date, 1));
+    const isTimed = Boolean(event.time);
+    const timedEnd = isTimed ? addMinutesToDateTime(event.date, event.time, 60) : null;
     const payload = {
       subject: event.title,
       body: {
@@ -553,14 +611,14 @@
         content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Plug E0 / IUE / Two-Photon Calendar.</p>`,
       },
       start: {
-        dateTime: `${date}T00:00:00`,
+        dateTime: isTimed ? `${date}T${event.time}:00` : `${date}T00:00:00`,
         timeZone: "Asia/Tokyo",
       },
       end: {
-        dateTime: `${end}T00:00:00`,
+        dateTime: isTimed ? `${toISO(timedEnd.date)}T${timedEnd.time}:00` : `${end}T00:00:00`,
         timeZone: "Asia/Tokyo",
       },
-      isAllDay: true,
+      isAllDay: !isTimed,
       reminderMinutesBeforeStart: 1440,
       isReminderOn: true,
       categories: ["Protocol"],
@@ -589,10 +647,17 @@
   }
 
   function formatEventDate(event) {
+    if (event.time) {
+      return `${formatDate(event.date)} ${event.time}`;
+    }
     if (event.endDate && !sameDay(event.date, event.endDate)) {
       return `${formatDate(event.date)} - ${formatDate(event.endDate)}`;
     }
     return formatDate(event.date);
+  }
+
+  function formatRecordDate(event) {
+    return event.time ? `${toISO(event.date)} ${event.time}` : toISO(event.date);
   }
 
   function addDays(date, days) {
@@ -605,6 +670,14 @@
 
   function expectedBirthDate() {
     return addDays(parseISO(state.plugDate), 20);
+  }
+
+  function pairingDate() {
+    return addDays(parseISO(state.plugDate), -1);
+  }
+
+  function iueDate() {
+    return addDays(parseISO(state.plugDate), 15);
   }
 
   function actualBirthDate() {
@@ -635,6 +708,27 @@
     const minutes = String(date.getUTCMinutes()).padStart(2, "0");
     const seconds = String(date.getUTCSeconds()).padStart(2, "0");
     return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+  }
+
+  function formatICSLocalDateTime(date, time) {
+    return `${toISOCompact(date)}T${time.replace(":", "")}00`;
+  }
+
+  function addMinutesToTime(time, minutesToAdd) {
+    const [hours, minutes] = time.split(":").map(Number);
+    const total = hours * 60 + minutes + minutesToAdd;
+    const nextHours = String(Math.floor(total / 60) % 24).padStart(2, "0");
+    const nextMinutes = String(total % 60).padStart(2, "0");
+    return `${nextHours}:${nextMinutes}`;
+  }
+
+  function addMinutesToDateTime(date, time, minutesToAdd) {
+    const [hours, minutes] = time.split(":").map(Number);
+    const total = hours * 60 + minutes + minutesToAdd;
+    return {
+      date: addDays(date, Math.floor(total / (24 * 60))),
+      time: addMinutesToTime(time, minutesToAdd),
+    };
   }
 
   function stripTime(date) {
@@ -674,12 +768,16 @@
         ...state,
         ...saved,
         plugDate: migratedPlugDate,
+        pairingTime: saved.pairingTime || "",
+        iueTime: saved.iueTime || "",
         actualBirthDate: saved.actualBirthDate || "",
-        savedRecords: Array.isArray(saved.savedRecords) ? saved.savedRecords : [],
+        savedRecords: Array.isArray(saved.savedRecords) ? migrateSavedRecords(saved.savedRecords) : [],
         loadedRecordId: saved.loadedRecordId || "",
         nextRecordNumber: saved.nextRecordNumber || nextRecordNumberFromSaved(saved.savedRecords),
         lastSavedDraft: saved.lastSavedDraft || {
           plugDate: migratedPlugDate,
+          pairingTime: saved.pairingTime || "",
+          iueTime: saved.iueTime || "",
           actualBirthDate: saved.actualBirthDate || "",
         },
         visibleMonth: saved.visibleMonth
@@ -694,6 +792,14 @@
 
   function nextRecordNumberFromSaved(records) {
     return Array.isArray(records) ? records.length + 1 : 1;
+  }
+
+  function migrateSavedRecords(records) {
+    return records.map((record) => ({
+      ...record,
+      pairingTime: record.pairingTime || "",
+      iueTime: record.iueTime || "",
+    }));
   }
 
   function escapeHTML(value) {

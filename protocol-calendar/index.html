@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Plug E0 / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260629-saved-records">
+    <link rel="stylesheet" href="./style.css?v=20260629-pairing-iue-time">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260629-saved-records"></script>
-    <script defer src="./calendar.js?v=20260629-saved-records"></script>
+    <script defer src="./calendar-config.js?v=20260629-pairing-iue-time"></script>
+    <script defer src="./calendar.js?v=20260629-pairing-iue-time"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -22,6 +22,24 @@
             <label class="field-label" for="plugDate">Plug date / E0</label>
             <input class="date-input" type="date" id="plugDate">
             <p class="hint">Enter the day the plug is found. This date is treated as E0 for IUE planning.</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="pairingDate">Pairing date / time</label>
+            <div class="date-time-row">
+              <input class="date-input" type="date" id="pairingDate" readonly>
+              <input class="date-input" type="time" id="pairingTime">
+            </div>
+            <p class="hint">Pairing date is calculated as plug date / E0 -1 day. Enter the pairing time if needed.</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="iueDate">IUE / E15 date / time</label>
+            <div class="date-time-row">
+              <input class="date-input" type="date" id="iueDate" readonly>
+              <input class="date-input" type="time" id="iueTime">
+            </div>
+            <p class="hint">IUE date is calculated as plug date / E0 +15 days. Enter the operation time if needed.</p>
           </div>
 
           <div class="field-group">
