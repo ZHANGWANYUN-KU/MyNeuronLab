@@ -7,6 +7,8 @@
     plugDate: document.getElementById("plugDate"),
     birthDate: document.getElementById("birthDate"),
     actualBirthDate: document.getElementById("actualBirthDate"),
+    saveButton: document.getElementById("saveButton"),
+    cancelButton: document.getElementById("cancelButton"),
     todayButton: document.getElementById("todayButton"),
     clearButton: document.getElementById("clearButton"),
     syncButton: document.getElementById("syncButton"),
@@ -16,7 +18,9 @@
     monthTitle: document.getElementById("monthTitle"),
     calendarGrid: document.getElementById("calendarGrid"),
     resultGrid: document.getElementById("resultGrid"),
+    savedGrid: document.getElementById("savedGrid"),
     basisText: document.getElementById("basisText"),
+    savedStatus: document.getElementById("savedStatus"),
     eventDialog: document.getElementById("eventDialog"),
     closeDialog: document.getElementById("closeDialog"),
     dialogType: document.getElementById("dialogType"),
@@ -30,6 +34,13 @@
     plugDate: toISO(today),
     actualBirthDate: "",
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
+    savedRecords: [],
+    loadedRecordId: "",
+    nextRecordNumber: 1,
+    lastSavedDraft: {
+      plugDate: toISO(today),
+      actualBirthDate: "",
+    },
   };
 
   let msalClient = null;
@@ -58,6 +69,9 @@
       persistAndRender();
     });
 
+    els.saveButton.addEventListener("click", saveCurrentRecord);
+    els.cancelButton.addEventListener("click", cancelDraftChanges);
+
     els.todayButton.addEventListener("click", () => {
       state.visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
       persistAndRender();
@@ -67,7 +81,11 @@
       state = {
         plugDate: "",
         actualBirthDate: "",
+        loadedRecordId: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
+        savedRecords: state.savedRecords,
+        nextRecordNumber: state.nextRecordNumber,
+        lastSavedDraft: state.lastSavedDraft,
       };
       persistAndRender();
     });
@@ -102,6 +120,7 @@
     const events = buildEvents();
     renderCalendar(events);
     renderResults(events);
+    renderSavedRecords();
     updateSyncState(events);
   }
 
@@ -165,6 +184,10 @@
     });
 
     return events;
+  }
+
+  function buildEventsForRecord(record) {
+    return withDraft(record, buildEvents);
   }
 
   function renderCalendar(events) {
@@ -234,6 +257,152 @@
       )}</span><small>${escapeHTML(card.rule)}</small>`;
       els.resultGrid.appendChild(node);
     });
+  }
+
+  function renderSavedRecords() {
+    els.savedGrid.innerHTML = "";
+    const records = state.savedRecords || [];
+    els.savedStatus.textContent = records.length
+      ? `${records.length} saved record${records.length === 1 ? "" : "s"}`
+      : "No saved records yet.";
+
+    records.forEach((record) => {
+      const events = buildEventsForRecord(record);
+      const node = document.createElement("article");
+      node.className = "saved-card";
+
+      const title = document.createElement("div");
+      title.className = "saved-card-header";
+      title.innerHTML = `<strong>${escapeHTML(record.label)}</strong><span>${escapeHTML(
+        record.plugDate
+      )}</span>`;
+      node.appendChild(title);
+
+      const detail = document.createElement("dl");
+      detail.className = "saved-detail";
+      getSavedRows(events, record).forEach((row) => {
+        const term = document.createElement("dt");
+        term.textContent = row.label;
+        const value = document.createElement("dd");
+        value.textContent = row.date;
+        detail.appendChild(term);
+        detail.appendChild(value);
+      });
+      node.appendChild(detail);
+
+      const actions = document.createElement("div");
+      actions.className = "saved-actions";
+
+      const load = document.createElement("button");
+      load.type = "button";
+      load.className = "secondary-button";
+      load.textContent = "Load";
+      load.addEventListener("click", () => loadSavedRecord(record.id));
+      actions.appendChild(load);
+
+      const remove = document.createElement("button");
+      remove.type = "button";
+      remove.className = "secondary-button danger-button";
+      remove.textContent = "Delete";
+      remove.addEventListener("click", () => deleteSavedRecord(record.id));
+      actions.appendChild(remove);
+
+      node.appendChild(actions);
+      els.savedGrid.appendChild(node);
+    });
+  }
+
+  function getSavedRows(events, record) {
+    return [
+      { label: "Plug/E0", date: getSavedDate(events, "plug") },
+      { label: "IUE/E15", date: getSavedDate(events, "iue-e15") },
+      { label: "Expected birth", date: getSavedDate(events, "expected-birth") },
+      { label: "Actual P0", date: record.actualBirthDate ? getSavedDate(events, "actual-birth-p0") : "Not set" },
+      { label: "P13 imaging", date: getSavedDate(events, "p13") },
+      { label: "P14 imaging", date: getSavedDate(events, "p14") },
+    ];
+  }
+
+  function getSavedDate(events, id) {
+    const event = events.find((candidate) => candidate.id === id);
+    return event ? toISO(event.date) : "Not set";
+  }
+
+  function saveCurrentRecord() {
+    if (!state.plugDate) return;
+
+    const now = new Date().toISOString();
+    const number = state.nextRecordNumber || nextRecordNumberFromRecords();
+    const record = {
+      id: `record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      label: `Protocol #${number}`,
+      plugDate: state.plugDate,
+      actualBirthDate: state.actualBirthDate || "",
+      createdAt: now,
+      updatedAt: now,
+    };
+    state.savedRecords.push(record);
+    state.loadedRecordId = record.id;
+    state.nextRecordNumber = number + 1;
+
+    rememberCurrentDraft();
+    persistAndRender();
+  }
+
+  function loadSavedRecord(id) {
+    const record = state.savedRecords.find((candidate) => candidate.id === id);
+    if (!record) return;
+
+    state.plugDate = record.plugDate;
+    state.actualBirthDate = record.actualBirthDate || "";
+    state.loadedRecordId = record.id;
+    state.visibleMonth = new Date(parseISO(record.plugDate).getFullYear(), parseISO(record.plugDate).getMonth(), 1);
+    rememberCurrentDraft();
+    persistAndRender();
+  }
+
+  function deleteSavedRecord(id) {
+    state.savedRecords = state.savedRecords.filter((record) => record.id !== id);
+    if (state.loadedRecordId === id) {
+      state.loadedRecordId = "";
+      rememberCurrentDraft();
+    }
+    persistAndRender();
+  }
+
+  function cancelDraftChanges() {
+    const draft = state.lastSavedDraft || {};
+    state.plugDate = draft.plugDate || "";
+    state.actualBirthDate = draft.actualBirthDate || "";
+    if (state.plugDate) {
+      const plug = parseISO(state.plugDate);
+      state.visibleMonth = new Date(plug.getFullYear(), plug.getMonth(), 1);
+    }
+    persistAndRender();
+  }
+
+  function rememberCurrentDraft() {
+    state.lastSavedDraft = {
+      plugDate: state.plugDate || "",
+      actualBirthDate: state.actualBirthDate || "",
+    };
+  }
+
+  function nextRecordNumberFromRecords() {
+    return (state.savedRecords || []).length + 1;
+  }
+
+  function withDraft(record, callback) {
+    const original = {
+      plugDate: state.plugDate,
+      actualBirthDate: state.actualBirthDate,
+    };
+    state.plugDate = record.plugDate;
+    state.actualBirthDate = record.actualBirthDate || "";
+    const result = callback();
+    state.plugDate = original.plugDate;
+    state.actualBirthDate = original.actualBirthDate;
+    return result;
   }
 
   function getCard(label, events, id) {
@@ -506,6 +675,13 @@
         ...saved,
         plugDate: migratedPlugDate,
         actualBirthDate: saved.actualBirthDate || "",
+        savedRecords: Array.isArray(saved.savedRecords) ? saved.savedRecords : [],
+        loadedRecordId: saved.loadedRecordId || "",
+        nextRecordNumber: saved.nextRecordNumber || nextRecordNumberFromSaved(saved.savedRecords),
+        lastSavedDraft: saved.lastSavedDraft || {
+          plugDate: migratedPlugDate,
+          actualBirthDate: saved.actualBirthDate || "",
+        },
         visibleMonth: saved.visibleMonth
           ? new Date(parseISO(saved.visibleMonth).getFullYear(), parseISO(saved.visibleMonth).getMonth(), 1)
           : state.visibleMonth,
@@ -514,6 +690,10 @@
     } catch (_) {
       localStorage.removeItem(STORAGE_KEY);
     }
+  }
+
+  function nextRecordNumberFromSaved(records) {
+    return Array.isArray(records) ? records.length + 1 : 1;
   }
 
   function escapeHTML(value) {

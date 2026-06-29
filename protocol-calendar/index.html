@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Plug E0 / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260627-e0-p0-ics">
+    <link rel="stylesheet" href="./style.css?v=20260629-saved-records">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260627-e0-p0-ics"></script>
-    <script defer src="./calendar.js?v=20260627-e0-p0-ics"></script>
+    <script defer src="./calendar-config.js?v=20260629-saved-records"></script>
+    <script defer src="./calendar.js?v=20260629-saved-records"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -37,6 +37,8 @@
           </div>
 
           <div class="action-row">
+            <button class="primary-button" type="button" id="saveButton">Save</button>
+            <button class="secondary-button" type="button" id="cancelButton">Cancel</button>
             <button class="primary-button" type="button" id="todayButton">Today</button>
             <button class="secondary-button" type="button" id="clearButton">Clear</button>
           </div>
@@ -80,6 +82,14 @@
             <p id="basisText">Enter a plug date to start calculation.</p>
         </div>
         <div class="result-grid" id="resultGrid"></div>
+      </section>
+
+      <section class="saved-band" aria-label="Saved protocol records">
+        <div class="summary-header">
+          <h2>Saved Records</h2>
+          <p id="savedStatus">No saved records yet.</p>
+        </div>
+        <div class="saved-grid" id="savedGrid"></div>
       </section>
     </main>
 
