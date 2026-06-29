@@ -1,18 +1,17 @@
 (function () {
-  const STORAGE_KEY = "protocol-calendar-state-v1";
+  const MS_PER_DAY = 24 * 60 * 60 * 1000;
+  const STORAGE_KEY = "protocol-calendar-state-v2";
   const cfg = window.PROTOCOL_CALENDAR_CONFIG || {};
 
   const els = {
-    plugField: document.getElementById("plugField"),
-    plugDate: document.getElementById("plugDate"),
+    pairingField: document.getElementById("pairingField"),
     pairingDate: document.getElementById("pairingDate"),
-    pairingTime: document.getElementById("pairingTime"),
-    iueDate: document.getElementById("iueDate"),
-    iueTime: document.getElementById("iueTime"),
+    plugDate: document.getElementById("plugDate"),
+    iue145Date: document.getElementById("iue145Date"),
+    iue155Date: document.getElementById("iue155Date"),
     birthDate: document.getElementById("birthDate"),
-    actualBirthDate: document.getElementById("actualBirthDate"),
-    saveButton: document.getElementById("saveButton"),
-    cancelButton: document.getElementById("cancelButton"),
+    p13Date: document.getElementById("p13Date"),
+    p14Date: document.getElementById("p14Date"),
     todayButton: document.getElementById("todayButton"),
     clearButton: document.getElementById("clearButton"),
     syncButton: document.getElementById("syncButton"),
@@ -22,9 +21,7 @@
     monthTitle: document.getElementById("monthTitle"),
     calendarGrid: document.getElementById("calendarGrid"),
     resultGrid: document.getElementById("resultGrid"),
-    savedGrid: document.getElementById("savedGrid"),
     basisText: document.getElementById("basisText"),
-    savedStatus: document.getElementById("savedStatus"),
     eventDialog: document.getElementById("eventDialog"),
     closeDialog: document.getElementById("closeDialog"),
     dialogType: document.getElementById("dialogType"),
@@ -35,20 +32,8 @@
 
   const today = stripTime(new Date());
   let state = {
-    plugDate: toISO(today),
-    pairingTime: "",
-    iueTime: "",
-    actualBirthDate: "",
+    plugDate: toISO(addDays(today, 1)),
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-    savedRecords: [],
-    loadedRecordId: "",
-    nextRecordNumber: 1,
-    lastSavedDraft: {
-      plugDate: toISO(today),
-      pairingTime: "",
-      iueTime: "",
-      actualBirthDate: "",
-    },
   };
 
   let msalClient = null;
@@ -63,32 +48,13 @@
   }
 
   function attachEvents() {
-    els.plugDate.addEventListener("change", () => {
-      state.plugDate = els.plugDate.value;
-      if (state.plugDate) {
-        const plug = parseISO(state.plugDate);
-        state.visibleMonth = new Date(plug.getFullYear(), plug.getMonth(), 1);
-      }
-      persistAndRender();
-    });
-
-    els.actualBirthDate.addEventListener("change", () => {
-      state.actualBirthDate = els.actualBirthDate.value;
-      persistAndRender();
-    });
-
-    els.pairingTime.addEventListener("change", () => {
-      state.pairingTime = els.pairingTime.value;
-      persistAndRender();
-    });
-
-    els.iueTime.addEventListener("change", () => {
-      state.iueTime = els.iueTime.value;
-      persistAndRender();
-    });
-
-    els.saveButton.addEventListener("click", saveCurrentRecord);
-    els.cancelButton.addEventListener("click", cancelDraftChanges);
+    attachDateRecalculator(els.pairingDate, -1);
+    attachDateRecalculator(els.plugDate, 0);
+    attachDateRecalculator(els.iue145Date, 14);
+    attachDateRecalculator(els.iue155Date, 15);
+    attachDateRecalculator(els.birthDate, 20);
+    attachDateRecalculator(els.p13Date, 32);
+    attachDateRecalculator(els.p14Date, 33);
 
     els.todayButton.addEventListener("click", () => {
       state.visibleMonth = new Date(today.getFullYear(), today.getMonth(), 1);
@@ -98,14 +64,7 @@
     els.clearButton.addEventListener("click", () => {
       state = {
         plugDate: "",
-        pairingTime: "",
-        iueTime: "",
-        actualBirthDate: "",
-        loadedRecordId: "",
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-        savedRecords: state.savedRecords,
-        nextRecordNumber: state.nextRecordNumber,
-        lastSavedDraft: state.lastSavedDraft,
       };
       persistAndRender();
     });
@@ -124,6 +83,21 @@
     els.closeDialog.addEventListener("click", () => els.eventDialog.close());
   }
 
+  function attachDateRecalculator(input, offsetFromPlug) {
+    input.addEventListener("change", () => {
+      if (!input.value) {
+        state.plugDate = "";
+        persistAndRender();
+        return;
+      }
+      const selected = parseISO(input.value);
+      const plug = addDays(selected, -offsetFromPlug);
+      state.plugDate = toISO(plug);
+      state.visibleMonth = new Date(selected.getFullYear(), selected.getMonth(), 1);
+      persistAndRender();
+    });
+  }
+
   function persistAndRender() {
     saveState();
     syncControlsFromState();
@@ -131,20 +105,20 @@
   }
 
   function syncControlsFromState() {
-    els.plugDate.value = state.plugDate || "";
-    els.pairingDate.value = state.plugDate ? toISO(pairingDate()) : "";
-    els.pairingTime.value = state.pairingTime || "";
-    els.iueDate.value = state.plugDate ? toISO(iueDate()) : "";
-    els.iueTime.value = state.iueTime || "";
-    els.birthDate.value = state.plugDate ? toISO(expectedBirthDate()) : "";
-    els.actualBirthDate.value = state.actualBirthDate || "";
+    const plug = state.plugDate ? parseISO(state.plugDate) : null;
+    els.pairingDate.value = plug ? toISO(addDays(plug, -1)) : "";
+    els.plugDate.value = plug ? toISO(plug) : "";
+    els.iue145Date.value = plug ? toISO(addDays(plug, 14)) : "";
+    els.iue155Date.value = plug ? toISO(addDays(plug, 15)) : "";
+    els.birthDate.value = plug ? toISO(addDays(plug, 20)) : "";
+    els.p13Date.value = plug ? toISO(addDays(plug, 32)) : "";
+    els.p14Date.value = plug ? toISO(addDays(plug, 33)) : "";
   }
 
   function render() {
     const events = buildEvents();
     renderCalendar(events);
     renderResults(events);
-    renderSavedRecords();
     updateSyncState(events);
   }
 
@@ -153,77 +127,63 @@
     if (!state.plugDate) return events;
 
     const plug = parseISO(state.plugDate);
-    const pairing = pairingDate();
-    const iue = iueDate();
-    const expectedBirth = expectedBirthDate();
-    const actualBirth = actualBirthDate();
-    const imagingAnchor = actualBirth || expectedBirth;
-    const imagingSource = actualBirth ? "actual birth date / P0" : "expected birth date";
+    const pairing = addDays(plug, -1);
 
     events.push({
       id: "pairing",
       title: "Pairing",
       type: "pairing",
       date: pairing,
-      time: state.pairingTime || "",
-      rule: "Pairing date is calculated as plug date / E0 - 1 day.",
+      rule: "Pairing date is calculated as plug date - 1 day.",
     });
 
     events.push({
       id: "plug",
-      title: "Plug date / E0",
+      title: "Plug date / E0.5",
       type: "plug",
       date: plug,
-      rule: "User-entered plug date. This date is defined as E0.",
+      rule: "Plug date is defined as E0.5.",
     });
-
     events.push({
-      id: "iue-e15",
-      title: "IUE / E15",
+      id: "iue145",
+      title: "E14.5 IUE",
       type: "iue",
-      date: iue,
-      time: state.iueTime || "",
-      rule: "IUE is calculated as plug date / E0 + 15 days.",
+      date: addDays(plug, 14),
+      rule: "Plug date + 14 days.",
     });
-
     events.push({
-      id: "expected-birth",
-      title: "Expected birth date",
-      type: "birth",
-      date: expectedBirth,
-      rule: "Expected birth date is calculated as plug date / E0 + 20 days.",
+      id: "iue155",
+      title: "E15.5 IUE",
+      type: "iue",
+      date: addDays(plug, 15),
+      rule: "Plug date + 15 days.",
     });
 
-    if (actualBirth) {
-      events.push({
-        id: "actual-birth-p0",
-        title: "Actual birth / P0",
-        type: "birth",
-        date: actualBirth,
-        rule: "User-entered actual birth date. This date is defined as P0 for imaging.",
-      });
-    }
+    const p1 = addDays(plug, 20);
+    events.push({
+      id: "birth-p1",
+      title: "Birth / P1",
+      type: "birth",
+      date: p1,
+      rule: "Birth is automatically calculated as plug date + 20 days and recorded as P1.",
+    });
 
     events.push({
       id: "p13",
       title: "P13 two-photon imaging",
       type: "imaging",
-      date: addDays(imagingAnchor, 13),
-      rule: `P13 is calculated as ${imagingSource} + 13 days.`,
+      date: addDays(p1, 12),
+      rule: "P13 is calculated as P1 + 12 days.",
     });
     events.push({
       id: "p14",
       title: "P14 two-photon imaging",
       type: "imaging",
-      date: addDays(imagingAnchor, 14),
-      rule: `P14 is calculated as ${imagingSource} + 14 days.`,
+      date: addDays(p1, 13),
+      rule: "P14 is calculated as P1 + 13 days.",
     });
 
     return events;
-  }
-
-  function buildEventsForRecord(record) {
-    return withDraft(record, buildEvents);
   }
 
   function renderCalendar(events) {
@@ -267,21 +227,16 @@
   function renderResults(events) {
     els.resultGrid.innerHTML = "";
     const plug = state.plugDate ? parseISO(state.plugDate) : null;
-    const actualBirth = actualBirthDate();
     els.basisText.textContent = plug
-      ? `Calculation basis: plug date ${formatDate(plug)} = E0; imaging uses ${
-          actualBirth ? `actual birth / P0 ${formatDate(actualBirth)}` : "expected birth date"
-        }`
-      : "Enter a plug date to start calculation.";
+      ? `Calculation basis: plug date ${formatDate(plug)} = E0.5`
+      : "Edit any protocol date to start calculation.";
 
     const cards = [
-      getCard("Pairing", events, "pairing"),
-      getCard("Plug date / E0", events, "plug"),
-      getCard("IUE / E15", events, "iue-e15"),
-      getCard("Expected birth date", events, "expected-birth"),
-      actualBirth
-        ? getCard("Actual birth / P0", events, "actual-birth-p0")
-        : { label: "Actual birth / P0", date: "Not set", rule: "Optional. Enter the real birth date to recalibrate P13/P14." },
+      getCard("Pairing date", events, "pairing"),
+      getCard("Plug date / E0.5", events, "plug"),
+      getCard("E14.5 IUE", events, "iue145"),
+      getCard("E15.5 IUE", events, "iue155"),
+      getCard("Birth / P1", events, "birth-p1"),
       getCard("P13 two-photon", events, "p13"),
       getCard("P14 two-photon", events, "p14"),
     ];
@@ -296,170 +251,9 @@
     });
   }
 
-  function renderSavedRecords() {
-    els.savedGrid.innerHTML = "";
-    const records = state.savedRecords || [];
-    els.savedStatus.textContent = records.length
-      ? `${records.length} saved record${records.length === 1 ? "" : "s"}`
-      : "No saved records yet.";
-
-    records.forEach((record) => {
-      const events = buildEventsForRecord(record);
-      const node = document.createElement("article");
-      node.className = "saved-card";
-
-      const title = document.createElement("div");
-      title.className = "saved-card-header";
-      title.innerHTML = `<strong>${escapeHTML(record.label)}</strong><span>${escapeHTML(
-        record.plugDate
-      )}</span>`;
-      node.appendChild(title);
-
-      const detail = document.createElement("dl");
-      detail.className = "saved-detail";
-      getSavedRows(events, record).forEach((row) => {
-        const term = document.createElement("dt");
-        term.textContent = row.label;
-        const value = document.createElement("dd");
-        value.textContent = row.date;
-        detail.appendChild(term);
-        detail.appendChild(value);
-      });
-      node.appendChild(detail);
-
-      const actions = document.createElement("div");
-      actions.className = "saved-actions";
-
-      const load = document.createElement("button");
-      load.type = "button";
-      load.className = "secondary-button";
-      load.textContent = "Load";
-      load.addEventListener("click", () => loadSavedRecord(record.id));
-      actions.appendChild(load);
-
-      const remove = document.createElement("button");
-      remove.type = "button";
-      remove.className = "secondary-button danger-button";
-      remove.textContent = "Delete";
-      remove.addEventListener("click", () => deleteSavedRecord(record.id));
-      actions.appendChild(remove);
-
-      node.appendChild(actions);
-      els.savedGrid.appendChild(node);
-    });
-  }
-
-  function getSavedRows(events, record) {
-    return [
-      { label: "Plug/E0", date: getSavedDate(events, "plug") },
-      { label: "Pairing", date: getSavedDate(events, "pairing") },
-      { label: "IUE/E15", date: getSavedDate(events, "iue-e15") },
-      { label: "Expected birth", date: getSavedDate(events, "expected-birth") },
-      { label: "Actual P0", date: record.actualBirthDate ? getSavedDate(events, "actual-birth-p0") : "Not set" },
-      { label: "P13 imaging", date: getSavedDate(events, "p13") },
-      { label: "P14 imaging", date: getSavedDate(events, "p14") },
-    ];
-  }
-
-  function getSavedDate(events, id) {
-    const event = events.find((candidate) => candidate.id === id);
-    return event ? formatRecordDate(event) : "Not set";
-  }
-
-  function saveCurrentRecord() {
-    if (!state.plugDate) return;
-
-    const now = new Date().toISOString();
-    const number = state.nextRecordNumber || nextRecordNumberFromRecords();
-    const record = {
-      id: `record-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      label: `Protocol #${number}`,
-      plugDate: state.plugDate,
-      pairingTime: state.pairingTime || "",
-      iueTime: state.iueTime || "",
-      actualBirthDate: state.actualBirthDate || "",
-      createdAt: now,
-      updatedAt: now,
-    };
-    state.savedRecords.push(record);
-    state.loadedRecordId = record.id;
-    state.nextRecordNumber = number + 1;
-
-    rememberCurrentDraft();
-    persistAndRender();
-  }
-
-  function loadSavedRecord(id) {
-    const record = state.savedRecords.find((candidate) => candidate.id === id);
-    if (!record) return;
-
-    state.plugDate = record.plugDate;
-    state.pairingTime = record.pairingTime || "";
-    state.iueTime = record.iueTime || "";
-    state.actualBirthDate = record.actualBirthDate || "";
-    state.loadedRecordId = record.id;
-    state.visibleMonth = new Date(parseISO(record.plugDate).getFullYear(), parseISO(record.plugDate).getMonth(), 1);
-    rememberCurrentDraft();
-    persistAndRender();
-  }
-
-  function deleteSavedRecord(id) {
-    state.savedRecords = state.savedRecords.filter((record) => record.id !== id);
-    if (state.loadedRecordId === id) {
-      state.loadedRecordId = "";
-      rememberCurrentDraft();
-    }
-    persistAndRender();
-  }
-
-  function cancelDraftChanges() {
-    const draft = state.lastSavedDraft || {};
-    state.plugDate = draft.plugDate || "";
-    state.pairingTime = draft.pairingTime || "";
-    state.iueTime = draft.iueTime || "";
-    state.actualBirthDate = draft.actualBirthDate || "";
-    if (state.plugDate) {
-      const plug = parseISO(state.plugDate);
-      state.visibleMonth = new Date(plug.getFullYear(), plug.getMonth(), 1);
-    }
-    persistAndRender();
-  }
-
-  function rememberCurrentDraft() {
-    state.lastSavedDraft = {
-      plugDate: state.plugDate || "",
-      pairingTime: state.pairingTime || "",
-      iueTime: state.iueTime || "",
-      actualBirthDate: state.actualBirthDate || "",
-    };
-  }
-
-  function nextRecordNumberFromRecords() {
-    return (state.savedRecords || []).length + 1;
-  }
-
-  function withDraft(record, callback) {
-    const original = {
-      plugDate: state.plugDate,
-      pairingTime: state.pairingTime,
-      iueTime: state.iueTime,
-      actualBirthDate: state.actualBirthDate,
-    };
-    state.plugDate = record.plugDate;
-    state.pairingTime = record.pairingTime || "";
-    state.iueTime = record.iueTime || "";
-    state.actualBirthDate = record.actualBirthDate || "";
-    const result = callback();
-    state.plugDate = original.plugDate;
-    state.pairingTime = original.pairingTime;
-    state.iueTime = original.iueTime;
-    state.actualBirthDate = original.actualBirthDate;
-    return result;
-  }
-
   function getCard(label, events, id) {
     const event = events.find((candidate) => candidate.id === id);
-    if (!event) return { label, date: "Not set", rule: "Waiting for plug date." };
+    if (!event) return { label, date: "Not set", rule: "Waiting for any protocol date." };
     return {
       label,
       date: formatEventDate(event),
@@ -477,26 +271,24 @@
 
   function updateSyncState(events) {
     const hasEvents = events.length > 0;
-    if (!hasEvents) {
-      els.syncStatus.textContent = "Enter a plug date";
+    if (!cfg.microsoftClientId) {
+      els.syncStatus.textContent = "Microsoft Client ID is required";
       els.syncButton.disabled = true;
       return;
     }
-    els.syncStatus.textContent = cfg.microsoftClientId
-      ? "Ready to sync directly with Outlook"
-      : "Downloads an .ics file for Google Calendar or Outlook";
-    els.syncButton.textContent = cfg.microsoftClientId ? "Sync to Outlook" : "Download .ics file";
+    if (!hasEvents) {
+      els.syncStatus.textContent = "Enter any protocol date";
+      els.syncButton.disabled = true;
+      return;
+    }
+    els.syncStatus.textContent = "Ready to sync all-day events with 1-day reminders";
     els.syncButton.disabled = false;
   }
 
   async function syncToOutlook() {
     const events = buildEvents();
     if (!events.length) return;
-    if (!window.msal || !cfg.microsoftClientId) {
-      downloadICS(events);
-      els.syncStatus.textContent = `Downloaded ${events.length} markers. Import the .ics file into Google Calendar or Outlook.`;
-      return;
-    }
+    if (!window.msal || !cfg.microsoftClientId) return;
 
     els.syncButton.disabled = true;
     els.syncStatus.textContent = "Connecting to Microsoft...";
@@ -512,57 +304,6 @@
     } finally {
       els.syncButton.disabled = false;
     }
-  }
-
-  function downloadICS(events) {
-    const content = buildICS(events);
-    const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
-    const link = document.createElement("a");
-    const plug = state.plugDate || toISO(today);
-    link.href = URL.createObjectURL(blob);
-    link.download = `protocol-calendar-${plug}.ics`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(link.href);
-  }
-
-  function buildICS(events) {
-    const timestamp = formatICSDateTime(new Date());
-    const lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//MyNeuronLab//Protocol Calendar//EN",
-      "CALSCALE:GREGORIAN",
-      "METHOD:PUBLISH",
-    ];
-
-    events.forEach((event) => {
-      const isTimed = Boolean(event.time);
-      const timedEnd = isTimed ? addMinutesToDateTime(event.date, event.time, 60) : null;
-      const start = isTimed ? formatICSLocalDateTime(event.date, event.time) : toISOCompact(event.date);
-      const end = isTimed
-        ? formatICSLocalDateTime(timedEnd.date, timedEnd.time)
-        : toISOCompact(addDays(event.endDate || event.date, 1));
-      lines.push(
-        "BEGIN:VEVENT",
-        `UID:${escapeICS(event.id)}-${start}@myneuronlab`,
-        `DTSTAMP:${timestamp}`,
-        `SUMMARY:${escapeICS(event.title)}`,
-        `DESCRIPTION:${escapeICS(event.rule)}`,
-        isTimed ? `DTSTART;TZID=Asia/Tokyo:${start}` : `DTSTART;VALUE=DATE:${start}`,
-        isTimed ? `DTEND;TZID=Asia/Tokyo:${end}` : `DTEND;VALUE=DATE:${end}`,
-        "BEGIN:VALARM",
-        "TRIGGER:-P1D",
-        "ACTION:DISPLAY",
-        `DESCRIPTION:${escapeICS(event.title)}`,
-        "END:VALARM",
-        "END:VEVENT"
-      );
-    });
-
-    lines.push("END:VCALENDAR");
-    return `${lines.join("\r\n")}\r\n`;
   }
 
   async function getGraphToken() {
@@ -602,23 +343,21 @@
   async function createOutlookEvent(token, event) {
     const date = toISO(event.date);
     const end = toISO(addDays(event.endDate || event.date, 1));
-    const isTimed = Boolean(event.time);
-    const timedEnd = isTimed ? addMinutesToDateTime(event.date, event.time, 60) : null;
     const payload = {
       subject: event.title,
       body: {
         contentType: "HTML",
-        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Plug E0 / IUE / Two-Photon Calendar.</p>`,
+        content: `<p>${escapeHTML(event.rule)}</p><p>Generated by the Pairing / IUE / Two-Photon Calendar.</p>`,
       },
       start: {
-        dateTime: isTimed ? `${date}T${event.time}:00` : `${date}T00:00:00`,
+        dateTime: `${date}T00:00:00`,
         timeZone: "Asia/Tokyo",
       },
       end: {
-        dateTime: isTimed ? `${toISO(timedEnd.date)}T${timedEnd.time}:00` : `${end}T00:00:00`,
+        dateTime: `${end}T00:00:00`,
         timeZone: "Asia/Tokyo",
       },
-      isAllDay: !isTimed,
+      isAllDay: true,
       reminderMinutesBeforeStart: 1440,
       isReminderOn: true,
       categories: ["Protocol"],
@@ -647,17 +386,10 @@
   }
 
   function formatEventDate(event) {
-    if (event.time) {
-      return `${formatDate(event.date)} ${event.time}`;
-    }
     if (event.endDate && !sameDay(event.date, event.endDate)) {
       return `${formatDate(event.date)} - ${formatDate(event.endDate)}`;
     }
     return formatDate(event.date);
-  }
-
-  function formatRecordDate(event) {
-    return event.time ? `${toISO(event.date)} ${event.time}` : toISO(event.date);
   }
 
   function addDays(date, days) {
@@ -666,22 +398,6 @@
 
   function addMonths(date, months) {
     return new Date(date.getFullYear(), date.getMonth() + months, 1);
-  }
-
-  function expectedBirthDate() {
-    return addDays(parseISO(state.plugDate), 20);
-  }
-
-  function pairingDate() {
-    return addDays(parseISO(state.plugDate), -1);
-  }
-
-  function iueDate() {
-    return addDays(parseISO(state.plugDate), 15);
-  }
-
-  function actualBirthDate() {
-    return state.actualBirthDate ? parseISO(state.actualBirthDate) : null;
   }
 
   function parseISO(value) {
@@ -694,41 +410,6 @@
     const month = String(date.getMonth() + 1).padStart(2, "0");
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
-  }
-
-  function toISOCompact(date) {
-    return toISO(date).replace(/-/g, "");
-  }
-
-  function formatICSDateTime(date) {
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, "0");
-    const day = String(date.getUTCDate()).padStart(2, "0");
-    const hours = String(date.getUTCHours()).padStart(2, "0");
-    const minutes = String(date.getUTCMinutes()).padStart(2, "0");
-    const seconds = String(date.getUTCSeconds()).padStart(2, "0");
-    return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
-  }
-
-  function formatICSLocalDateTime(date, time) {
-    return `${toISOCompact(date)}T${time.replace(":", "")}00`;
-  }
-
-  function addMinutesToTime(time, minutesToAdd) {
-    const [hours, minutes] = time.split(":").map(Number);
-    const total = hours * 60 + minutes + minutesToAdd;
-    const nextHours = String(Math.floor(total / 60) % 24).padStart(2, "0");
-    const nextMinutes = String(total % 60).padStart(2, "0");
-    return `${nextHours}:${nextMinutes}`;
-  }
-
-  function addMinutesToDateTime(date, time, minutesToAdd) {
-    const [hours, minutes] = time.split(":").map(Number);
-    const total = hours * 60 + minutes + minutesToAdd;
-    return {
-      date: addDays(date, Math.floor(total / (24 * 60))),
-      time: addMinutesToTime(time, minutesToAdd),
-    };
   }
 
   function stripTime(date) {
@@ -762,44 +443,16 @@
     if (!raw) return;
     try {
       const saved = JSON.parse(raw);
-      const migratedPlugDate =
-        saved.plugDate || (saved.pairingDate ? toISO(addDays(parseISO(saved.pairingDate), 1)) : state.plugDate);
       state = {
         ...state,
         ...saved,
-        plugDate: migratedPlugDate,
-        pairingTime: saved.pairingTime || "",
-        iueTime: saved.iueTime || "",
-        actualBirthDate: saved.actualBirthDate || "",
-        savedRecords: Array.isArray(saved.savedRecords) ? migrateSavedRecords(saved.savedRecords) : [],
-        loadedRecordId: saved.loadedRecordId || "",
-        nextRecordNumber: saved.nextRecordNumber || nextRecordNumberFromSaved(saved.savedRecords),
-        lastSavedDraft: saved.lastSavedDraft || {
-          plugDate: migratedPlugDate,
-          pairingTime: saved.pairingTime || "",
-          iueTime: saved.iueTime || "",
-          actualBirthDate: saved.actualBirthDate || "",
-        },
         visibleMonth: saved.visibleMonth
           ? new Date(parseISO(saved.visibleMonth).getFullYear(), parseISO(saved.visibleMonth).getMonth(), 1)
           : state.visibleMonth,
       };
-      delete state.pairingDate;
     } catch (_) {
       localStorage.removeItem(STORAGE_KEY);
     }
-  }
-
-  function nextRecordNumberFromSaved(records) {
-    return Array.isArray(records) ? records.length + 1 : 1;
-  }
-
-  function migrateSavedRecords(records) {
-    return records.map((record) => ({
-      ...record,
-      pairingTime: record.pairingTime || "",
-      iueTime: record.iueTime || "",
-    }));
   }
 
   function escapeHTML(value) {
@@ -809,13 +462,5 @@
       .replace(/>/g, "&gt;")
       .replace(/"/g, "&quot;")
       .replace(/'/g, "&#039;");
-  }
-
-  function escapeICS(value) {
-    return String(value)
-      .replace(/\\/g, "\\\\")
-      .replace(/\n/g, "\\n")
-      .replace(/;/g, "\\;")
-      .replace(/,/g, "\\,");
   }
 })();

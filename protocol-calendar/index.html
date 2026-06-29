@@ -3,11 +3,11 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Plug E0 / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260629-pairing-iue-time">
+    <title>Pairing / IUE / Two-Photon Calendar</title>
+    <link rel="stylesheet" href="./style.css?v=20260629-editable">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260629-pairing-iue-time"></script>
-    <script defer src="./calendar.js?v=20260629-pairing-iue-time"></script>
+    <script defer src="./calendar-config.js?v=20260629-editable"></script>
+    <script defer src="./calendar.js?v=20260629-editable"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -15,58 +15,57 @@
         <aside class="control-panel" aria-label="Experiment date settings">
           <div class="brand-block">
             <p class="eyebrow">S1 two-photon protocol</p>
-            <h1>Plug E0 / IUE / Two-Photon Calendar</h1>
+            <h1>Pairing / IUE / Two-Photon Calendar</h1>
           </div>
 
-          <div class="field-group" id="plugField">
-            <label class="field-label" for="plugDate">Plug date / E0</label>
+          <div class="field-group" id="pairingField">
+            <label class="field-label" for="pairingDate">Pairing date</label>
+            <input class="date-input" type="date" id="pairingDate">
+            <p class="hint">Edit any date below. The calendar will recalculate the same protocol timeline automatically.</p>
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="plugDate">Plug date / E0.5</label>
             <input class="date-input" type="date" id="plugDate">
-            <p class="hint">Enter the day the plug is found. This date is treated as E0 for IUE planning.</p>
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="pairingDate">Pairing date / time</label>
-            <div class="date-time-row">
-              <input class="date-input" type="date" id="pairingDate" readonly>
-              <input class="date-input" type="time" id="pairingTime">
-            </div>
-            <p class="hint">Pairing date is calculated as plug date / E0 -1 day. Enter the pairing time if needed.</p>
+            <label class="field-label" for="iue145Date">E14.5 IUE</label>
+            <input class="date-input" type="date" id="iue145Date">
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="iueDate">IUE / E15 date / time</label>
-            <div class="date-time-row">
-              <input class="date-input" type="date" id="iueDate" readonly>
-              <input class="date-input" type="time" id="iueTime">
-            </div>
-            <p class="hint">IUE date is calculated as plug date / E0 +15 days. Enter the operation time if needed.</p>
+            <label class="field-label" for="iue155Date">E15.5 IUE</label>
+            <input class="date-input" type="date" id="iue155Date">
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="birthDate">Expected birth date</label>
-            <input class="date-input" type="date" id="birthDate" readonly>
-            <p class="hint">Automatically calculated as plug date / E0 +20 days.</p>
+            <label class="field-label" for="birthDate">Birth date / P1</label>
+            <input class="date-input" type="date" id="birthDate">
           </div>
 
           <div class="field-group">
-            <label class="field-label" for="actualBirthDate">Actual birth date / P0</label>
-            <input class="date-input" type="date" id="actualBirthDate">
-            <p class="hint">Optional. Once pups are born, enter the real birth date so P13/P14 imaging recalculates from actual P0.</p>
+            <label class="field-label" for="p13Date">P13 two-photon</label>
+            <input class="date-input" type="date" id="p13Date">
+          </div>
+
+          <div class="field-group">
+            <label class="field-label" for="p14Date">P14 two-photon</label>
+            <input class="date-input" type="date" id="p14Date">
+            <p class="hint">Logic: Pairing +1 = E0.5; IUE = E0.5 +14/+15; P1 = E0.5 +20; P13/P14 = P1 +12/+13.</p>
           </div>
 
           <div class="action-row">
-            <button class="primary-button" type="button" id="saveButton">Save</button>
-            <button class="secondary-button" type="button" id="cancelButton">Cancel</button>
             <button class="primary-button" type="button" id="todayButton">Today</button>
             <button class="secondary-button" type="button" id="clearButton">Clear</button>
           </div>
 
-          <section class="sync-panel" aria-label="Calendar sync">
+          <section class="sync-panel" aria-label="Outlook calendar sync">
             <div>
-              <h2>Calendar sync</h2>
+              <h2>Hotmail / Outlook</h2>
               <p id="syncStatus">Not connected</p>
             </div>
-            <button class="sync-button" type="button" id="syncButton">Download calendar file</button>
+            <button class="sync-button" type="button" id="syncButton">Sync markers</button>
           </section>
         </aside>
 
@@ -97,17 +96,9 @@
       <section class="summary-band" aria-label="Calculation results">
         <div class="summary-header">
           <h2>Calculation Results</h2>
-            <p id="basisText">Enter a plug date to start calculation.</p>
+            <p id="basisText">Edit any protocol date to start calculation.</p>
         </div>
         <div class="result-grid" id="resultGrid"></div>
-      </section>
-
-      <section class="saved-band" aria-label="Saved protocol records">
-        <div class="summary-header">
-          <h2>Saved Records</h2>
-          <p id="savedStatus">No saved records yet.</p>
-        </div>
-        <div class="saved-grid" id="savedGrid"></div>
       </section>
     </main>
 

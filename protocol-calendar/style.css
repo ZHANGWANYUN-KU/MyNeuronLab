@@ -147,12 +147,6 @@ input {
   color: var(--ink);
 }
 
-.date-time-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(112px, 0.52fr);
-  gap: 8px;
-}
-
 .hint {
   margin: 0;
   color: var(--muted);
@@ -335,8 +329,7 @@ input {
   background: var(--teal);
 }
 
-.summary-band,
-.saved-band {
+.summary-band {
   margin-top: 20px;
   padding: 22px;
   border: 1px solid var(--line);
@@ -364,7 +357,7 @@ input {
 
 .result-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(150px, 1fr));
+  grid-template-columns: repeat(7, minmax(140px, 1fr));
   gap: 10px;
 }
 
@@ -395,67 +388,6 @@ input {
   margin-top: 7px;
   color: var(--muted);
   line-height: 1.35;
-}
-
-.saved-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(240px, 1fr));
-  gap: 12px;
-}
-
-.saved-card {
-  display: grid;
-  gap: 12px;
-  padding: 14px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #fbfcfd;
-}
-
-.saved-card-header {
-  display: flex;
-  gap: 10px;
-  align-items: baseline;
-  justify-content: space-between;
-}
-
-.saved-card-header strong {
-  font-size: 15px;
-}
-
-.saved-card-header span {
-  color: var(--muted);
-  font-size: 13px;
-  font-weight: 700;
-}
-
-.saved-detail {
-  display: grid;
-  grid-template-columns: minmax(92px, auto) 1fr;
-  gap: 6px 10px;
-  margin: 0;
-  font-size: 13px;
-}
-
-.saved-detail dt {
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.saved-detail dd {
-  margin: 0;
-  color: var(--ink);
-  font-weight: 800;
-}
-
-.saved-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-}
-
-.danger-button {
-  color: var(--rose);
 }
 
 .event-dialog {
@@ -516,10 +448,6 @@ input {
   .result-grid {
     grid-template-columns: repeat(3, minmax(150px, 1fr));
   }
-
-  .saved-grid {
-    grid-template-columns: repeat(2, minmax(220px, 1fr));
-  }
 }
 
 @media (max-width: 720px) {
@@ -567,14 +495,6 @@ input {
   }
 
   .result-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .date-time-row {
-    grid-template-columns: 1fr;
-  }
-
-  .saved-grid {
     grid-template-columns: 1fr;
   }
 }
