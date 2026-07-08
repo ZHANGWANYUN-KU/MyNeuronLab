@@ -9,6 +9,15 @@
     birth: { displayName: "MyNeuronLab - Birth", color: "preset3" },
     imaging: { displayName: "MyNeuronLab - Imaging", color: "preset4" },
   };
+  const OFFSET_BY_EVENT_ID = {
+    pairing: -1,
+    plug: 0,
+    iue145: 14,
+    iue155: 15,
+    "birth-p1": 20,
+    p13: 32,
+    p14: 33,
+  };
 
   const els = {
     pairingField: document.getElementById("pairingField"),
@@ -50,6 +59,7 @@
     editOffset: -1,
     pendingSelection: null,
     savedMarks: [],
+    savedAllProtocolMarks: true,
     outlookEventIds: {},
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
@@ -94,6 +104,7 @@
         editOffset: state.editOffset,
         pendingSelection: null,
         savedMarks: state.savedMarks || [],
+        savedAllProtocolMarks: state.savedAllProtocolMarks,
         outlookEventIds: state.outlookEventIds || {},
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
@@ -313,15 +324,12 @@
   }
 
   function saveCurrentMark() {
-    if (!state.pendingSelection) return;
-    const mark = {
-      id: `${state.pendingSelection.offset}:${state.pendingSelection.date}`,
-      date: state.pendingSelection.date,
-      offset: Number(state.pendingSelection.offset),
-      savedAt: new Date().toISOString(),
-    };
+    const protocolMarks = currentProtocolMarks();
+    if (!protocolMarks.length) return;
+    const ids = new Set(protocolMarks.map((mark) => mark.id));
     const marks = Array.isArray(state.savedMarks) ? state.savedMarks : [];
-    state.savedMarks = [mark, ...marks.filter((item) => item.id !== mark.id)];
+    state.savedMarks = [...protocolMarks, ...marks.filter((item) => !ids.has(item.id))];
+    state.savedAllProtocolMarks = true;
     persistAndRender();
   }
 
@@ -369,13 +377,11 @@
     }
     const date = parseISO(state.pendingSelection.date);
     const label = labelForOffset(Number(state.pendingSelection.offset));
-    const exists = (state.savedMarks || []).some(
-      (mark) =>
-        mark.date === state.pendingSelection.date &&
-        Number(mark.offset) === Number(state.pendingSelection.offset)
-    );
-    els.selectedDateText.textContent = `${label}: ${formatDate(date)}${exists ? " (saved)" : ""}`;
-    els.saveMarkButton.disabled = exists;
+    const protocolMarks = currentProtocolMarks();
+    const savedIds = new Set((state.savedMarks || []).map((mark) => mark.id));
+    const allSaved = protocolMarks.length > 0 && protocolMarks.every((mark) => savedIds.has(mark.id));
+    els.selectedDateText.textContent = `${label}: ${formatDate(date)}. Save all marks will store ${protocolMarks.length} protocol dates${allSaved ? " (all saved)" : ""}.`;
+    els.saveMarkButton.disabled = allSaved;
     els.cancelMarkButton.disabled = false;
   }
 
@@ -492,6 +498,37 @@
     if (offset === 14 || offset === 15) return "iue";
     if (offset === 20) return "birth";
     return "imaging";
+  }
+
+  function currentProtocolMarks() {
+    return protocolMarksForPlugDate(state.plugDate, new Date().toISOString());
+  }
+
+  function protocolMarksForPlugDate(plugDate, savedAt) {
+    if (!plugDate) return [];
+    const plug = typeof plugDate === "string" ? parseISO(plugDate) : plugDate;
+    return Object.values(OFFSET_BY_EVENT_ID).map((offset) => {
+      const date = toISO(addDays(plug, Number(offset)));
+      return {
+        id: `${offset}:${date}`,
+        date,
+        offset: Number(offset),
+        savedAt,
+      };
+    });
+  }
+
+  function completeSavedMarks(marks) {
+    const completed = new Map();
+    marks.forEach((mark) => {
+      const offset = Number(mark.offset);
+      if (!mark.date || !Number.isFinite(offset)) return;
+      const plugDate = toISO(addDays(parseISO(mark.date), -offset));
+      protocolMarksForPlugDate(plugDate, mark.savedAt || new Date().toISOString()).forEach((protocolMark) => {
+        if (!completed.has(protocolMark.id)) completed.set(protocolMark.id, protocolMark);
+      });
+    });
+    return [...completed.values()];
   }
 
   function focusSavedMark(mark) {
@@ -816,7 +853,12 @@
       state = {
         ...state,
         ...saved,
-        savedMarks: Array.isArray(saved.savedMarks) ? saved.savedMarks : [],
+        savedMarks: Array.isArray(saved.savedMarks)
+          ? saved.savedAllProtocolMarks
+            ? saved.savedMarks
+            : completeSavedMarks(saved.savedMarks)
+          : [],
+        savedAllProtocolMarks: true,
         outlookEventIds: saved.outlookEventIds && typeof saved.outlookEventIds === "object" ? saved.outlookEventIds : {},
         visibleMonth: saved.visibleMonth
           ? new Date(parseISO(saved.visibleMonth).getFullYear(), parseISO(saved.visibleMonth).getMonth(), 1)
