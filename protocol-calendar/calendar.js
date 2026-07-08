@@ -2,6 +2,13 @@
   const MS_PER_DAY = 24 * 60 * 60 * 1000;
   const STORAGE_KEY = "protocol-calendar-state-v2";
   const cfg = window.PROTOCOL_CALENDAR_CONFIG || {};
+  const OUTLOOK_CATEGORY_BY_TYPE = {
+    pairing: { displayName: "MyNeuronLab - Pairing", color: "preset0" },
+    plug: { displayName: "MyNeuronLab - Plug", color: "preset1" },
+    iue: { displayName: "MyNeuronLab - IUE", color: "preset2" },
+    birth: { displayName: "MyNeuronLab - Birth", color: "preset3" },
+    imaging: { displayName: "MyNeuronLab - Imaging", color: "preset4" },
+  };
 
   const els = {
     pairingField: document.getElementById("pairingField"),
@@ -18,6 +25,7 @@
     p14Date: document.getElementById("p14Date"),
     todayButton: document.getElementById("todayButton"),
     clearButton: document.getElementById("clearButton"),
+    downloadIcsButton: document.getElementById("downloadIcsButton"),
     syncButton: document.getElementById("syncButton"),
     syncStatus: document.getElementById("syncStatus"),
     prevMonth: document.getElementById("prevMonth"),
@@ -42,6 +50,7 @@
     editOffset: -1,
     pendingSelection: null,
     savedMarks: [],
+    outlookEventIds: {},
     visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
   };
 
@@ -85,6 +94,7 @@
         editOffset: state.editOffset,
         pendingSelection: null,
         savedMarks: state.savedMarks || [],
+        outlookEventIds: state.outlookEventIds || {},
         visibleMonth: new Date(today.getFullYear(), today.getMonth(), 1),
       };
       persistAndRender();
@@ -100,6 +110,7 @@
       persistAndRender();
     });
 
+    els.downloadIcsButton.addEventListener("click", downloadSavedMarksIcs);
     els.syncButton.addEventListener("click", syncToOutlook);
     els.closeDialog.addEventListener("click", () => els.eventDialog.close());
   }
@@ -436,23 +447,21 @@
     els.eventDialog.showModal();
   }
 
-  function updateSyncState(events) {
-    const hasEvents = exportableEvents(events).length > 0;
-    els.syncButton.textContent = cfg.microsoftClientId ? "Sync markers" : "Download .ics";
-    if (!cfg.microsoftClientId) {
-      els.syncStatus.textContent = hasEvents
-        ? "Download saved marks as an .ics calendar file"
-        : "Enter or save dates before downloading";
-      els.syncButton.disabled = !hasEvents;
-      return;
-    }
+  function updateSyncState() {
+    const events = exportableEvents();
+    const hasEvents = events.length > 0;
+    els.downloadIcsButton.disabled = !hasEvents;
+    els.syncButton.disabled = !hasEvents || !cfg.microsoftClientId;
+
     if (!hasEvents) {
-      els.syncStatus.textContent = "Enter any protocol date";
-      els.syncButton.disabled = true;
+      els.syncStatus.textContent = "Save marks before exporting or syncing.";
       return;
     }
-    els.syncStatus.textContent = "Ready to sync all-day events with 1-day reminders";
-    els.syncButton.disabled = false;
+    if (!cfg.microsoftClientId) {
+      els.syncStatus.textContent = `${events.length} saved mark${events.length === 1 ? "" : "s"} ready for .ics download. Add a Microsoft client ID to enable Outlook sync.`;
+      return;
+    }
+    els.syncStatus.textContent = `${events.length} saved mark${events.length === 1 ? "" : "s"} ready for Outlook sync with colored categories.`;
   }
 
   function savedMarksForDay(day) {
@@ -496,44 +505,64 @@
   }
 
   async function syncToOutlook() {
-    const events = exportableEvents(buildEvents());
+    const events = exportableEvents();
     if (!events.length) return;
     if (!window.msal || !cfg.microsoftClientId) {
-      downloadIcsEvents(events);
+      els.syncStatus.textContent = "Add a Microsoft client ID before syncing to Outlook.";
       return;
     }
 
     els.syncButton.disabled = true;
+    els.downloadIcsButton.disabled = true;
     els.syncStatus.textContent = "Connecting to Microsoft...";
 
     try {
       const token = await getGraphToken();
+      await ensureOutlookCategories(token, events);
+      let created = 0;
+      let updated = 0;
       for (const event of events) {
-        await createOutlookEvent(token, event);
+        const result = await upsertOutlookEvent(token, event);
+        if (result === "updated") updated += 1;
+        if (result === "created") created += 1;
       }
-      els.syncStatus.textContent = `Synced ${events.length} calendar markers`;
+      els.syncStatus.textContent = `Synced ${events.length} saved mark${events.length === 1 ? "" : "s"} to Outlook (${created} created, ${updated} updated).`;
     } catch (error) {
       els.syncStatus.textContent = `Sync failed: ${error.message || "check authorization settings"}`;
     } finally {
-      els.syncButton.disabled = false;
+      const hasEvents = exportableEvents().length > 0;
+      els.downloadIcsButton.disabled = !hasEvents;
+      els.syncButton.disabled = !hasEvents || !cfg.microsoftClientId;
     }
   }
 
-  function exportableEvents(events) {
+  function downloadSavedMarksIcs() {
+    const events = exportableEvents();
+    if (!events.length) return;
+    downloadIcsEvents(events);
+  }
+
+  function exportableEvents() {
     const saved = state.savedMarks || [];
-    if (!saved.length) return events;
     return saved
       .slice()
       .sort((a, b) =>
         a.date === b.date ? Number(a.offset) - Number(b.offset) : a.date.localeCompare(b.date)
       )
-      .map((mark) => ({
-        id: `saved-${mark.id}`,
-        title: labelForOffset(Number(mark.offset)),
-        type: typeForOffset(Number(mark.offset)),
-        date: parseISO(mark.date),
-        rule: "Saved protocol date marker.",
-      }));
+      .map((mark) => {
+        const offset = Number(mark.offset);
+        const type = typeForOffset(offset);
+        const category = OUTLOOK_CATEGORY_BY_TYPE[type] || OUTLOOK_CATEGORY_BY_TYPE.imaging;
+        return {
+          id: `saved-${offset}-${mark.date}`,
+          markId: mark.id,
+          title: labelForOffset(offset),
+          type,
+          date: parseISO(mark.date),
+          rule: "Saved protocol date marker.",
+          categoryName: category.displayName,
+        };
+      });
   }
 
   function downloadIcsEvents(events) {
@@ -557,6 +586,7 @@
         `DTEND;VALUE=DATE:${end}`,
         `SUMMARY:${escapeICS(event.title)}`,
         `DESCRIPTION:${escapeICS(event.rule || "Protocol calendar marker.")}`,
+        `CATEGORIES:${escapeICS(event.categoryName || event.type)}`,
         "BEGIN:VALARM",
         "ACTION:DISPLAY",
         `DESCRIPTION:${escapeICS(event.title)}`,
@@ -578,7 +608,7 @@
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
-    els.syncStatus.textContent = `Downloaded ${events.length} calendar marker${events.length === 1 ? "" : "s"}`;
+    els.syncStatus.textContent = `Downloaded ${events.length} saved mark${events.length === 1 ? "" : "s"} in one .ics file.`;
   }
 
   async function getGraphToken() {
@@ -615,7 +645,60 @@
     return result.accessToken;
   }
 
-  async function createOutlookEvent(token, event) {
+  async function ensureOutlookCategories(token, events) {
+    const needed = [...new Set(events.map((event) => event.type))]
+      .map((type) => OUTLOOK_CATEGORY_BY_TYPE[type])
+      .filter(Boolean);
+    if (!needed.length) return;
+
+    const response = await graphFetch(token, "https://graph.microsoft.com/v1.0/me/outlook/masterCategories");
+    const data = await response.json();
+    const existing = new Map((data.value || []).map((category) => [category.displayName, category]));
+
+    for (const category of needed) {
+      const existingCategory = existing.get(category.displayName);
+      if (existingCategory) {
+        if (existingCategory.color !== category.color) {
+          const categoryId = existingCategory.id || existingCategory.displayName;
+          await graphFetch(token, `https://graph.microsoft.com/v1.0/me/outlook/masterCategories/${encodeURIComponent(categoryId)}`, {
+            method: "PATCH",
+            body: JSON.stringify({ color: category.color }),
+          });
+        }
+        continue;
+      }
+      await graphFetch(token, "https://graph.microsoft.com/v1.0/me/outlook/masterCategories", {
+        method: "POST",
+        body: JSON.stringify(category),
+      });
+      existing.set(category.displayName, category);
+    }
+  }
+
+  async function upsertOutlookEvent(token, event) {
+    const mappedId = (state.outlookEventIds || {})[event.id];
+    if (mappedId) {
+      const response = await graphFetch(token, `https://graph.microsoft.com/v1.0/me/events/${encodeURIComponent(mappedId)}`, {
+        method: "PATCH",
+        body: JSON.stringify(outlookPayloadForEvent(event, { includeTransactionId: false })),
+      }, [404]);
+      if (response.status !== 404) return "updated";
+    }
+
+    const response = await graphFetch(token, "https://graph.microsoft.com/v1.0/me/events", {
+      method: "POST",
+      body: JSON.stringify(outlookPayloadForEvent(event, { includeTransactionId: true })),
+    });
+    const created = await response.json();
+    state.outlookEventIds = {
+      ...(state.outlookEventIds || {}),
+      [event.id]: created.id,
+    };
+    saveState();
+    return "created";
+  }
+
+  function outlookPayloadForEvent(event, options = {}) {
     const date = toISO(event.date);
     const end = toISO(addDays(event.endDate || event.date, 1));
     const payload = {
@@ -635,22 +718,30 @@
       isAllDay: true,
       reminderMinutesBeforeStart: 1440,
       isReminderOn: true,
-      categories: ["Protocol"],
+      categories: [event.categoryName],
     };
+    if (options.includeTransactionId) {
+      payload.transactionId = event.id;
+    }
+    return payload;
+  }
 
-    const response = await fetch("https://graph.microsoft.com/v1.0/me/events", {
-      method: "POST",
+  async function graphFetch(token, url, options = {}, allowedStatuses = []) {
+    const response = await fetch(url, {
+      method: options.method || "GET",
       headers: {
         Authorization: `Bearer ${token}`,
         "Content-Type": "application/json",
+        ...(options.headers || {}),
       },
-      body: JSON.stringify(payload),
+      body: options.body,
     });
 
-    if (!response.ok) {
+    if (!response.ok && !allowedStatuses.includes(response.status)) {
       const text = await response.text();
       throw new Error(text || `HTTP ${response.status}`);
     }
+    return response;
   }
 
   function eventIncludesDate(event, date) {
@@ -725,6 +816,8 @@
       state = {
         ...state,
         ...saved,
+        savedMarks: Array.isArray(saved.savedMarks) ? saved.savedMarks : [],
+        outlookEventIds: saved.outlookEventIds && typeof saved.outlookEventIds === "object" ? saved.outlookEventIds : {},
         visibleMonth: saved.visibleMonth
           ? new Date(parseISO(saved.visibleMonth).getFullYear(), parseISO(saved.visibleMonth).getMonth(), 1)
           : state.visibleMonth,

@@ -200,7 +200,7 @@ select {
 
 .sync-panel {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: minmax(0, 1fr) minmax(190px, 0.9fr);
   gap: 12px;
   align-items: center;
   padding: 14px;
@@ -245,12 +245,18 @@ select {
   font-size: 13px;
 }
 
+.sync-actions {
+  display: grid;
+  gap: 8px;
+}
+
 .sync-button {
   padding: 0 14px;
 }
 
 .sync-button:disabled {
   background: #9aa6ad;
+  opacity: 0.75;
   cursor: not-allowed;
 }
 
@@ -619,6 +625,10 @@ select {
   }
 
   .result-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sync-panel {
     grid-template-columns: 1fr;
   }
 }

@@ -4,10 +4,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Pairing / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260629-downloadmarks">
+    <link rel="stylesheet" href="./style.css?v=20260708-outlook-sync">
     <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260629-downloadmarks"></script>
-    <script defer src="./calendar.js?v=20260629-downloadmarks"></script>
+    <script defer src="./calendar-config.js?v=20260708-outlook-sync"></script>
+    <script defer src="./calendar.js?v=20260708-outlook-sync"></script>
   </head>
   <body>
     <main class="app-shell">
@@ -16,7 +16,7 @@
           <div class="brand-block">
             <p class="eyebrow">S1 two-photon protocol</p>
             <h1>Pairing / IUE / Two-Photon Calendar</h1>
-            <p class="hint">Build: saved marks + ICS download</p>
+            <p class="hint">Build: saved marks + Outlook categories</p>
           </div>
 
           <div class="field-group" id="pairingField">
@@ -89,9 +89,12 @@
           <section class="sync-panel" aria-label="Outlook calendar sync">
             <div>
               <h2>Calendar export</h2>
-              <p id="syncStatus">Download protocol dates as an .ics calendar file</p>
+              <p id="syncStatus">Save marks before exporting or syncing.</p>
             </div>
-            <button class="sync-button" type="button" id="syncButton">Download .ics</button>
+            <div class="sync-actions">
+              <button class="secondary-button" type="button" id="downloadIcsButton">Download saved marks .ics</button>
+              <button class="sync-button" type="button" id="syncButton">Sync saved marks to Outlook</button>
+            </div>
           </section>
         </aside>
 
