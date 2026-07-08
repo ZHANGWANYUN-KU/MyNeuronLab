@@ -508,8 +508,13 @@ select {
   color: var(--muted);
 }
 
+.saved-item small {
+  color: var(--muted);
+  line-height: 1.35;
+}
+
 .saved-item button {
-  grid-row: 1 / span 2;
+  grid-row: 1 / span 3;
   grid-column: 2;
   min-height: 32px;
   padding: 0 10px;

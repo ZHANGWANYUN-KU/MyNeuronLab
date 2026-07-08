@@ -335,8 +335,14 @@
 
   function cancelCurrentMark() {
     if (!state.pendingSelection) return;
-    const id = `${state.pendingSelection.offset}:${state.pendingSelection.date}`;
-    state.savedMarks = (state.savedMarks || []).filter((mark) => mark.id !== id);
+    const selectedMark = {
+      date: state.pendingSelection.date,
+      offset: Number(state.pendingSelection.offset),
+    };
+    const selectedProtocolKey = protocolKeyForMark(selectedMark);
+    state.savedMarks = (state.savedMarks || []).filter(
+      (mark) => protocolKeyForMark(mark) !== selectedProtocolKey
+    );
     state.pendingSelection = null;
     persistAndRender();
   }
@@ -386,32 +392,24 @@
   }
 
   function renderSavedMarks() {
-    const marks = [...(state.savedMarks || [])].sort((a, b) =>
-      a.date === b.date ? Number(a.offset) - Number(b.offset) : a.date.localeCompare(b.date)
-    );
+    const protocols = groupedSavedProtocols();
     els.savedList.innerHTML = "";
-    if (!marks.length) {
+    if (!protocols.length) {
       els.savedStatsText.textContent = "No saved marks.";
       return;
     }
 
-    const counts = marks.reduce((acc, mark) => {
-      const label = labelForOffset(Number(mark.offset));
-      acc[label] = (acc[label] || 0) + 1;
-      return acc;
-    }, {});
-    els.savedStatsText.textContent = `${marks.length} total | ${Object.entries(counts)
-      .map(([label, count]) => `${label}: ${count}`)
-      .join(" | ")}`;
+    const exportCount = exportableEvents().length;
+    els.savedStatsText.textContent = `${protocols.length} saved protocol${protocols.length === 1 ? "" : "s"} | ${exportCount} categories in .ics`;
 
-    marks.forEach((mark) => {
+    protocols.forEach((protocol) => {
+      const mark = protocol.pairingMark;
       const item = document.createElement("article");
       item.className = "saved-item";
       item.tabIndex = 0;
-      const label = labelForOffset(Number(mark.offset));
-      item.innerHTML = `<strong>${escapeHTML(label)}</strong><span>${escapeHTML(
+      item.innerHTML = `<strong>Pairing date</strong><span>${escapeHTML(
         formatDate(parseISO(mark.date))
-      )}</span><button type="button">Remove</button>`;
+      )}</span><small>Exports ${protocol.marks.length} protocol categories</small><button type="button">Remove</button>`;
       item.addEventListener("click", () => focusSavedMark(mark));
       item.addEventListener("keydown", (event) => {
         if (event.key === "Enter" || event.key === " ") {
@@ -421,11 +419,12 @@
       });
       item.querySelector("button").addEventListener("click", (event) => {
         event.stopPropagation();
-        state.savedMarks = (state.savedMarks || []).filter((candidate) => candidate.id !== mark.id);
+        state.savedMarks = (state.savedMarks || []).filter(
+          (candidate) => protocolKeyForMark(candidate) !== protocol.key
+        );
         if (
           state.pendingSelection &&
-          state.pendingSelection.date === mark.date &&
-          Number(state.pendingSelection.offset) === Number(mark.offset)
+          protocolKeyForMark(state.pendingSelection) === protocol.key
         ) {
           state.pendingSelection = null;
         }
@@ -458,21 +457,24 @@
     const hasEvents = events.length > 0;
     els.downloadIcsButton.disabled = !hasEvents;
     els.syncButton.disabled = !hasEvents || !cfg.microsoftClientId;
+    const protocolCount = groupedSavedProtocols().length;
 
     if (!hasEvents) {
       els.syncStatus.textContent = "Save marks before exporting or syncing.";
       return;
     }
     if (!cfg.microsoftClientId) {
-      els.syncStatus.textContent = `${events.length} saved mark${events.length === 1 ? "" : "s"} ready for .ics download. Add a Microsoft client ID to enable Outlook sync.`;
+      els.syncStatus.textContent = `${protocolCount} saved protocol${protocolCount === 1 ? "" : "s"} ready; ${events.length} categories will export to .ics. Add a Microsoft client ID to enable Outlook sync.`;
       return;
     }
-    els.syncStatus.textContent = `${events.length} saved mark${events.length === 1 ? "" : "s"} ready for Outlook sync with colored categories.`;
+    els.syncStatus.textContent = `${protocolCount} saved protocol${protocolCount === 1 ? "" : "s"} ready; ${events.length} categories will sync to Outlook.`;
   }
 
   function savedMarksForDay(day) {
     const iso = toISO(day);
-    return (state.savedMarks || []).filter((mark) => mark.date === iso);
+    return (state.savedMarks || []).filter(
+      (mark) => mark.date === iso && Number(mark.offset) === -1
+    );
   }
 
   function isPendingDay(day) {
@@ -529,6 +531,32 @@
       });
     });
     return [...completed.values()];
+  }
+
+  function groupedSavedProtocols() {
+    const groups = new Map();
+    (state.savedMarks || []).forEach((mark) => {
+      const key = protocolKeyForMark(mark);
+      if (!key) return;
+      if (!groups.has(key)) groups.set(key, { key, marks: [] });
+      groups.get(key).marks.push(mark);
+    });
+
+    return [...groups.values()]
+      .map((group) => {
+        group.marks.sort((a, b) => Number(a.offset) - Number(b.offset));
+        group.pairingMark =
+          group.marks.find((mark) => Number(mark.offset) === -1) ||
+          protocolMarksForPlugDate(group.key, group.marks[0]?.savedAt || new Date().toISOString())[0];
+        return group;
+      })
+      .sort((a, b) => a.pairingMark.date.localeCompare(b.pairingMark.date));
+  }
+
+  function protocolKeyForMark(mark) {
+    const offset = Number(mark.offset);
+    if (!mark.date || !Number.isFinite(offset)) return "";
+    return toISO(addDays(parseISO(mark.date), -offset));
   }
 
   function focusSavedMark(mark) {
