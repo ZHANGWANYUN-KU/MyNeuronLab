@@ -1,149 +1,1419 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Pairing / IUE / Two-Photon Calendar</title>
-    <link rel="stylesheet" href="./style.css?v=20260708-save-all-marks">
-    <script defer src="https://alcdn.msauth.net/browser/2.38.4/js/msal-browser.min.js"></script>
-    <script defer src="./calendar-config.js?v=20260708-save-all-marks"></script>
-    <script defer src="./calendar.js?v=20260708-save-all-marks"></script>
-  </head>
-  <body>
-    <main class="app-shell">
-      <section class="workspace">
-        <aside class="control-panel" aria-label="Experiment date settings">
-          <div class="brand-block">
-            <p class="eyebrow">S1 two-photon protocol</p>
-            <h1>Pairing / IUE / Two-Photon Calendar</h1>
-            <p class="hint">Build: saved marks + Outlook categories</p>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pairing &amp; IUE Calendar</title>
+<style>
+:root{
+  /* Apple-style: system type, soft gray canvas, white rounded cards, hairlines, blue for controls, red for today.
+     Color fills are reserved for mating groups. PC: calendar + 440px rail; phone: one column. */
+  --bg:#f5f5f7; --surface:#ffffff; --fill:#f2f2f7; --fill-2:#e8e8ed;
+  --ink:#1d1d1f; --muted:#6e6e73; --faint:#a1a1a6;
+  --line:#e5e5ea; --line-strong:#d2d2d7;
+  --accent:#0071e3; --today:#ff3b30; --danger:#d70015;
+  --bar:rgba(245,245,247,.72);
+  --shadow:0 1px 2px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.05);
+  --g0c:#5856d6; --g0t:#4a48c4;
+  --g1c:#c93400; --g1t:#b83000;
+  --g2c:#008299; --g2t:#00768b;
+  --g3c:#b5308e; --g3t:#a32a80;
+  --g4c:#248a3d; --g4t:#1f7a36;
+  --g5c:#a66a00; --g5t:#8f5b00;
+  --tint:15%;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","PingFang SC","Hiragino Sans GB","Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+  --ease:cubic-bezier(.25,.8,.25,1);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --fill-2:#3a3a3c;
+    --ink:#f5f5f7; --muted:#a1a1a6; --faint:#636366;
+    --line:#2f2f31; --line-strong:#48484a;
+    --accent:#0a84ff; --today:#ff453a; --danger:#ff6961;
+    --bar:rgba(0,0,0,.66);
+    --shadow:0 1px 2px rgba(0,0,0,.5);
+    --g0t:#9f9dff; --g1t:#ffa07a; --g2t:#5ccde6; --g3t:#f291d6; --g4t:#66d982; --g5t:#f0c05a;
+    --tint:26%;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#000000; --surface:#1c1c1e; --fill:#2c2c2e; --fill-2:#3a3a3c;
+  --ink:#f5f5f7; --muted:#a1a1a6; --faint:#636366;
+  --line:#2f2f31; --line-strong:#48484a;
+  --accent:#0a84ff; --today:#ff453a; --danger:#ff6961;
+  --bar:rgba(0,0,0,.66);
+  --shadow:0 1px 2px rgba(0,0,0,.5);
+  --g0t:#9f9dff; --g1t:#ffa07a; --g2t:#5ccde6; --g3t:#f291d6; --g4t:#66d982; --g5t:#f0c05a;
+  --tint:26%;
+  color-scheme:dark;
+}
+.g0{--gc:var(--g0c);--gt:var(--g0t)} .g1{--gc:var(--g1c);--gt:var(--g1t)} .g2{--gc:var(--g2c);--gt:var(--g2t)}
+.g3{--gc:var(--g3c);--gt:var(--g3t)} .g4{--gc:var(--g4c);--gt:var(--g4t)} .g5{--gc:var(--g5c);--gt:var(--g5t)}
+
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:15px;line-height:1.47;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale}
+button,input{font:inherit;color:inherit}
+h1,h2,h3,p{margin:0}
+.num{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+:focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:20;background:var(--bar);-webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid var(--line)}
+.bar-in{max-width:1480px;margin:0 auto;padding:10px 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:56px}
+.bar h1{font-size:19px;font-weight:600;letter-spacing:-.01em}
+.top-actions{display:flex;align-items:center;gap:14px;min-width:0}
+.sync{font-size:13px;color:var(--muted);display:inline-flex;align-items:center;gap:6px;min-width:0}
+.sync i{width:7px;height:7px;border-radius:50%;background:var(--faint);display:inline-block;flex:none}
+.sync.ok i{background:#34c759} .sync.bad i{background:var(--today)}
+
+.page{max-width:1480px;margin:0 auto;padding:22px 28px 48px;display:flex;flex-direction:column;gap:18px}
+
+.btn{height:36px;padding:0 16px;border:none;border-radius:980px;background:var(--fill-2);font-size:14px;font-weight:500;cursor:pointer;white-space:nowrap;transition:background-color .2s var(--ease),transform .12s var(--ease),opacity .2s var(--ease)}
+.btn:hover{background:var(--line-strong)}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--accent);color:#fff}
+.btn.primary:hover{background:var(--accent);opacity:.88}
+.btn.quiet{background:transparent;color:var(--accent);padding:0 10px}
+.btn.quiet:hover{background:var(--fill)}
+.btn.danger{background:color-mix(in srgb,var(--danger) 12%,var(--surface));color:var(--danger)}
+.btn.danger:hover{background:color-mix(in srgb,var(--danger) 20%,var(--surface))}
+.btn.small{height:32px;font-size:13px;padding:0 13px}
+.icon-btn{width:32px;height:32px;padding:0;display:inline-grid;place-items:center;font-size:20px;line-height:1;color:var(--muted)}
+
+.banner{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:12px 18px;border-radius:16px;background:color-mix(in srgb,var(--accent) 9%,var(--surface));font-size:14px}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 440px;gap:18px;align-items:start}
+.card{background:var(--surface);border-radius:20px;padding:20px;box-shadow:var(--shadow)}
+.card h2{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px}
+.rail{display:flex;flex-direction:column;gap:18px;min-width:0}
+
+/* calendar */
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.cal-title{font-size:28px;line-height:1.15;letter-spacing:-.02em;font-weight:700}
+.cal-title .yr{font-weight:400;color:var(--muted)}
+.cal-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.seg{display:inline-flex;background:var(--fill-2);border-radius:980px;padding:2px}
+.seg-btn{height:32px;min-width:36px;padding:0 12px;border:none;border-radius:980px;background:transparent;font-size:14px;font-weight:500;cursor:pointer;display:inline-grid;place-items:center;transition:background-color .2s var(--ease),transform .12s var(--ease)}
+.seg-btn:hover{background:var(--surface)}
+.seg-btn:active{transform:scale(.95)}
+.seg-btn svg{width:9px;height:14px;display:block}
+.focus-chip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 5px 0 13px;border-radius:980px;font-size:13px;font-weight:500;background:color-mix(in srgb,var(--gc) var(--tint),var(--surface));color:var(--gt);animation:rise .25s var(--ease)}
+.focus-chip button{width:22px;height:22px;border:none;border-radius:50%;background:transparent;color:inherit;cursor:pointer;font-size:15px;line-height:1;transition:background-color .2s var(--ease)}
+.focus-chip button:hover{background:color-mix(in srgb,var(--gc) 22%,transparent)}
+.wd{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));font-size:12px;font-weight:500;color:var(--muted);text-align:right;padding:0 0 6px}
+.wd span{padding-right:13px}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.grid.swap{animation:rise .3s var(--ease)}
+.cell{position:relative;border:none;background:var(--surface);min-height:108px;padding:6px;display:flex;flex-direction:column;gap:3px;align-items:stretch;text-align:left;cursor:pointer;min-width:0;transition:background-color .18s var(--ease)}
+.cell:hover{background:var(--fill)}
+.cell.out{background:color-mix(in srgb,var(--fill) 60%,var(--surface))}
+.cell.out .dn{color:var(--faint)}
+.cell.sel{background:var(--fill)}
+.cell.span{background:color-mix(in srgb,var(--gc) 7%,var(--surface))}
+.cell.hit{background:color-mix(in srgb,var(--gc) 19%,var(--surface))}
+.cell.hit::after{content:"";position:absolute;inset:3px;border-radius:10px;box-shadow:inset 0 0 0 2px var(--gc);pointer-events:none}
+.dn{display:inline-grid;place-items:center;align-self:flex-end;width:26px;height:26px;border-radius:50%;font-size:14px;font-variant-numeric:tabular-nums;flex:none;transition:background-color .18s var(--ease),color .18s var(--ease)}
+.cell.sel .dn{background:var(--ink);color:var(--surface);font-weight:600}
+.cell.today .dn{background:var(--today);color:#fff;font-weight:600}
+.legend{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:14px;font-size:12px;color:var(--muted);align-items:center}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.footnote{margin-top:8px;font-size:12px;color:var(--faint)}
+
+/* rail */
+.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:8px}
+.list li{display:flex;gap:9px;align-items:baseline}
+.dot{width:9px;height:9px;border-radius:50%;background:var(--gc);display:inline-block;flex:none}
+.big{font-size:19px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
+.day-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.block{border-top:1px solid var(--line);padding-top:14px;margin-top:14px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.chip{min-width:50px;height:44px;padding:0 14px;border:none;border-radius:12px;background:var(--fill-2);cursor:pointer;font-size:16px;font-weight:600;transition:background-color .2s var(--ease),color .2s var(--ease),transform .12s var(--ease),box-shadow .2s var(--ease)}
+.chip:hover{background:var(--line-strong)}
+.chip:active{transform:scale(.94)}
+.chip[aria-pressed="true"]{background:var(--gc);color:#fff;box-shadow:0 4px 12px color-mix(in srgb,var(--gc) 35%,transparent)}
+.hint{font-size:13px;color:var(--muted)}
+
+.tbl-wrap{overflow-x:auto}
+table.sum{width:100%;border-collapse:separate;border-spacing:0;font-size:14px;font-variant-numeric:tabular-nums}
+table.sum th{font-size:12px;font-weight:500;color:var(--muted);text-align:left;padding:0 10px 8px;white-space:nowrap}
+table.sum td{padding:11px 10px;border-top:1px solid var(--line);vertical-align:middle;transition:background-color .18s var(--ease)}
+table.sum td.nw{white-space:nowrap}
+tr.row{cursor:pointer}
+tr.row:hover td{background:var(--fill)}
+tr.row.on td{background:color-mix(in srgb,var(--gc) var(--tint),var(--surface));border-top-color:transparent}
+tr.row.on + tr.row td{border-top-color:transparent}
+tr.row.on td:first-child{border-radius:10px 0 0 10px}
+tr.row.on td:last-child{border-radius:0 10px 10px 0}
+tr.row:focus-visible{outline-offset:-3px}
+.mate{display:inline-flex;align-items:center;gap:8px;font-weight:600}
+.age{font-size:12px;font-weight:600;padding:2px 8px;border-radius:980px;background:var(--fill-2);white-space:nowrap}
+tr.row.on .age{background:color-mix(in srgb,var(--gc) 20%,var(--surface));color:var(--gt)}
+.past{color:var(--faint)}
+.now{font-weight:600;color:var(--today)}
+.detail{margin-top:14px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--gc) 8%,var(--surface));display:flex;flex-direction:column;gap:8px;font-size:14px;animation:rise .25s var(--ease)}
+.detail .steps{color:var(--muted);font-size:13px}
+.detail label{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.detail input[type=date]{height:36px;padding:0 10px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface)}
+.ended{margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.ended .btn{padding-left:6px;display:inline-flex;align-items:center;gap:6px}
+.chev{display:inline-block;width:7px;height:7px;border-right:1.6px solid currentColor;border-bottom:1.6px solid currentColor;transform:rotate(-45deg);transition:transform .2s var(--ease);margin:0 3px}
+.chev.open{transform:rotate(45deg)}
+.ended-box{max-height:260px;overflow:auto;margin-top:8px;animation:rise .25s var(--ease)}
+
+dialog{border:none;border-radius:20px;padding:0;background:var(--surface);color:var(--ink);width:min(520px,calc(100% - 32px));max-height:calc(100% - 32px);box-shadow:0 24px 80px rgba(0,0,0,.28)}
+dialog[open]{animation:pop .24s var(--ease)}
+dialog::backdrop{background:rgba(0,0,0,.32);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.dlg-head{display:flex;align-items:center;justify-content:space-between;padding:18px 20px 0}
+.dlg-head h2{font-size:19px;font-weight:600;letter-spacing:-.01em}
+.dlg-body{padding:14px 20px 20px;display:flex;flex-direction:column;gap:20px}
+.dlg-body h3{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 10px}
+.cage-row{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cage-row span{width:56px;font-size:13px;color:var(--muted);flex:none}
+.cage-row input{flex:1;min-width:0;height:38px;padding:0 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.cage-row input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.row-btns{display:flex;flex-wrap:wrap;gap:8px}
+.msg{font-size:13px;color:var(--muted);min-height:20px;margin-top:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+@keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+
+@media (max-width:1279px){
+  .layout{display:flex;flex-direction:column;align-items:stretch}
+  .rail{display:contents}
+  .rail > .card:first-child{order:-1}
+}
+@media (max-width:640px){
+  .bar-in{padding:8px 16px;min-height:50px}
+  .bar h1{font-size:17px}
+  .sync span{display:none}
+  .page{padding:14px 16px 36px;gap:14px}
+  .layout,.rail{gap:14px}
+  .card{padding:14px;border-radius:18px}
+  .cal-title{font-size:24px}
+  .wd{text-align:center}
+  .wd span{padding-right:0}
+  .cell{min-height:68px;padding:4px 2px;gap:2px}
+  .dn{align-self:center;width:24px;height:24px;font-size:13px}
+  .big{font-size:17px}
+  table.sum{font-size:13px}
+  table.sum td,table.sum th{padding-left:5px;padding-right:5px}
+  table.sum td.nw:last-child{white-space:normal}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+
+/* type filters */
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:16px}
+.filters .lbl{font-size:13px;color:var(--muted);margin-right:2px}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 13px;border:none;border-radius:980px;background:var(--fill-2);font-size:13px;font-weight:500;cursor:pointer;transition:background-color .2s var(--ease),color .2s var(--ease),transform .12s var(--ease)}
+.fchip:hover{background:var(--line-strong)}
+.fchip:active{transform:scale(.96)}
+.fchip[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+.fchip .ic{width:13px;height:13px;flex:none}
+
+/* one color per event type; grey means the type is not selected */
+:root{
+  --c-mate:#5856d6; --c-plug:#008299; --c-iue:#c93400; --c-birth:#248a3d; --c-img:#b5308e;
+  --x-mate:#4a48c4; --x-plug:#00768b; --x-iue:#b83000; --x-birth:#1f7a36; --x-img:#a32a80;
+  --gc:var(--accent); --gt:var(--accent);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){--x-mate:#9f9dff; --x-plug:#5ccde6; --x-iue:#ffa07a; --x-birth:#66d982; --x-img:#f291d6;}
+}
+:root[data-theme="dark"]{--x-mate:#9f9dff; --x-plug:#5ccde6; --x-iue:#ffa07a; --x-birth:#66d982; --x-img:#f291d6;}
+.t-mate{--gc:var(--c-mate);--gt:var(--x-mate)} .t-plug{--gc:var(--c-plug);--gt:var(--x-plug)} .t-iue{--gc:var(--c-iue);--gt:var(--x-iue)}
+.t-birth{--gc:var(--c-birth);--gt:var(--x-birth)} .t-img{--gc:var(--c-img);--gt:var(--x-img)}
+.fchip .ic{color:var(--gt)}
+.fchip[aria-pressed="true"]{background:var(--gc);color:#fff}
+.fchip[aria-pressed="true"] .ic{color:#fff}
+.fchip[data-f="all"][aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+
+/* events inside a day: every event is the same one-line box */
+.cell{min-height:116px;padding:6px 5px 5px}
+.evs{display:flex;flex-direction:column;gap:3px;min-width:0}
+.ev{display:flex;align-items:center;gap:4px;height:21px;padding:0 6px 0 5px;border-radius:6px;font-size:12px;line-height:1;min-width:0;white-space:nowrap;background:var(--gc);color:#fff;transition:opacity .2s var(--ease),background-color .2s var(--ease)}
+.ev .ic{width:12px;height:12px;flex:none;color:#fff}
+.ev .t{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+.ev .c{margin-left:auto;flex:none;max-width:62%;overflow:hidden;text-overflow:ellipsis;font-size:11px;font-weight:500;font-variant-numeric:tabular-nums;color:rgba(255,255,255,.86)}
+.ev.soft{background:color-mix(in srgb,var(--gc) var(--tint),var(--surface));color:var(--gt)}
+.ev.soft .ic,.ev.soft .c{color:var(--gt)}
+.grid.focus .ev:not(.foc){opacity:.3}
+.ev.dim{background:var(--fill-2);color:var(--muted);opacity:var(--dim,.1)}
+.ev.dim .ic,.ev.dim .c{color:var(--muted)}
+
+.ev .cs{display:none}
+@media (min-width:1280px) and (max-width:1439px),(max-width:940px){.ev .cl{display:none}.ev .cs{display:inline}}
+
+/* plug check: confirm, then locked */
+.plug-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.chips.locked .chip{cursor:default}
+.chips.locked .chip:active{transform:none}
+.chips.locked .chip:not([aria-pressed="true"]){opacity:.45}
+.chips.locked .chip:not([aria-pressed="true"]):hover{background:var(--fill-2)}
+.hint.warn{color:var(--danger)}
+
+/* settings form */
+.field{display:grid;grid-template-columns:104px 110px minmax(0,1fr);align-items:center;gap:10px;margin-bottom:10px;font-size:14px}
+.field label{font-weight:500}
+.field .suffix{color:var(--muted);font-size:13px}
+.inp,.cage-row input{height:38px;padding:0 12px;border:1px solid var(--line-strong);border-radius:10px;background:var(--surface);min-width:0;width:100%;transition:border-color .2s var(--ease),box-shadow .2s var(--ease)}
+.inp:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 22%,transparent)}
+.field.wide{grid-template-columns:130px minmax(0,1fr) 124px}
+.field input[type=range]{width:100%;accent-color:var(--accent)}
+.check{display:flex;gap:8px;align-items:center;font-size:14px;margin-top:4px}
+.check input{width:16px;height:16px;accent-color:var(--accent)}
+.msg.err{color:var(--danger)}
+.cage-row span{width:60px}
+dialog{overflow:auto}
+
+/* imaging result */
+.ask{margin-top:14px;padding:14px 16px;border-radius:14px;background:color-mix(in srgb,var(--accent) 8%,var(--surface));display:flex;flex-direction:column;gap:10px;animation:rise .25s var(--ease)}
+.ask-h{font-size:14px;font-weight:600}
+.ask-row{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap;font-size:14px}
+.ask-row .info{flex:1;min-width:120px;color:var(--muted);font-size:13px}
+.yn{display:inline-flex;background:var(--fill-2);border-radius:980px;padding:2px;flex:none}
+.ask .yn{background:var(--surface)}
+.yn button{height:26px;min-width:38px;padding:0 10px;border:none;border-radius:980px;background:transparent;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;transition:background-color .2s var(--ease),color .2s var(--ease),transform .12s var(--ease)}
+.yn button:hover{color:var(--ink)}
+.yn button:active{transform:scale(.94)}
+.yn button[aria-pressed="true"]{background:var(--ink);color:var(--surface)}
+tr.row.failed td{opacity:.3;filter:grayscale(1)}
+tr.row.failed:hover td,tr.row.failed:focus-within td{opacity:1}
+
+@media (max-width:820px){
+  .cell{min-height:70px;padding:4px 2px}
+  .evs{flex-direction:row;flex-wrap:wrap;justify-content:center;gap:2px}
+  .ev{width:20px;height:20px;min-height:0;padding:0;justify-content:center;border-radius:6px}
+  .ev .t,.ev .c{display:none}
+  .ev .ic{width:11px;height:11px}
+  .fchip{height:30px;padding:0 11px}
+  .field{grid-template-columns:96px minmax(0,1fr)}
+  .field .suffix{grid-column:1 / -1}
+}
+
+/* ---- Apple type system: one family, six sizes, three weights ----
+   Large title 32/700 · Title 20/600 · Headline 17/600 · Body 15/400 · Footnote 13 · Caption 12 (micro 11) */
+:root{
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro Display","Helvetica Neue","PingFang SC","Hiragino Sans GB",system-ui,"Segoe UI","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+}
+body{font-size:15px;line-height:1.4;font-synthesis:none;text-rendering:optimizeLegibility;font-kerning:normal}
+.bar h1{font-size:17px;font-weight:600;letter-spacing:-.01em}
+.sync{font-size:13px}
+.banner{font-size:15px;line-height:1.35}
+.cal-title{font-size:32px;font-weight:700;letter-spacing:-.022em;line-height:1.1}
+.cal-title .yr{font-weight:400;letter-spacing:-.015em}
+.card-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.card h2{font-size:20px;font-weight:600;color:var(--ink);letter-spacing:-.014em;line-height:1.25;margin:0}
+.card-head .sub{font-size:13px;color:var(--muted)}
+.day-head{align-items:center;margin-bottom:12px}
+.big{font-size:17px;font-weight:600;letter-spacing:-.01em;line-height:1.3}
+.list li{font-size:15px;line-height:1.35}
+.hint{font-size:13px;line-height:1.38}
+.btn{font-size:14px;font-weight:500;letter-spacing:-.005em}
+.btn.primary{font-weight:600}
+.btn.small{font-size:13px}
+.seg-btn{font-size:14px;font-weight:500}
+.filters .lbl,.fchip{font-size:13px}
+.fchip{font-weight:500}
+.wd{font-size:13px;font-weight:400}
+.dn{font-size:15px;width:28px;height:28px}
+.legend,.footnote{font-size:12px;line-height:1.35}
+.focus-chip{font-size:13px;font-weight:500}
+table.sum{font-size:14px}
+table.sum th{font-size:12px;font-weight:500;padding-bottom:9px}
+table.sum td{padding-top:12px;padding-bottom:12px}
+.mate{font-weight:600}
+.age{font-size:12px;font-weight:600}
+.now{font-weight:600}
+.chip{font-size:17px;font-weight:600}
+.detail,.ask-row{font-size:14px;line-height:1.38}
+.detail .steps,.ask-row .info{font-size:13px}
+.ask-h{font-size:15px;font-weight:600;letter-spacing:-.005em}
+.yn button{font-size:12px;font-weight:600}
+.dlg-head{padding:20px 22px 0}
+.dlg-head h2{font-size:22px;font-weight:700;letter-spacing:-.02em;line-height:1.2}
+.dlg-body{padding:14px 22px 22px;gap:22px}
+.dlg-body h3{font-size:13px;font-weight:600;color:var(--muted);margin:0 0 8px;padding-left:4px}
+.group{background:var(--fill);border-radius:14px;padding:16px}
+.group .hint{margin-top:10px}
+.group .msg:empty{display:none}
+.field{font-size:15px}
+.field label{font-weight:500}
+.field .suffix,.cage-row span{font-size:13px}
+.inp,.cage-row input,.detail input[type=date]{font-size:15px}
+.check{font-size:14px}
+.msg{font-size:13px;line-height:1.38}
+@media (max-width:640px){
+  .cal-title{font-size:28px}
+  .dn{width:24px;height:24px;font-size:14px}
+  .wd{font-size:12px}
+  table.sum{font-size:13px}
+  .dlg-head{padding:18px 18px 0}
+  .dlg-body{padding:12px 18px 18px}
+}
+.group .btn:not(.primary):not(.danger):not(.quiet){background:var(--surface)}
+.group .btn:not(.primary):not(.danger):not(.quiet):hover{background:var(--fill-2)}
+.banner .btn:not(.primary){background:var(--surface)}
+
+/* remaining-tasks table */
+.main{display:flex;flex-direction:column;gap:18px;min-width:0}
+table.todo td{border-top-color:transparent;padding-top:8px;padding-bottom:8px}
+table.todo tr.first td{border-top-color:var(--line);padding-top:12px}
+table.todo tbody tr:first-child td{border-top-color:var(--line)}
+table.todo td:first-child{font-weight:600}
+.task{display:inline-flex;align-items:center;gap:7px;font-weight:500}
+.task .ic{width:14px;height:14px;flex:none;color:var(--gt)}
+.st{display:inline-flex;align-items:center;height:22px;padding:0 10px;border-radius:980px;font-size:12px;font-weight:600;white-space:nowrap}
+.st.todo{background:color-mix(in srgb,var(--today) 13%,var(--surface));color:var(--danger)}
+.st.now,.st.late{background:var(--today);color:#fff}
+.st.done{padding:0;color:var(--faint);font-weight:500}
+tr.isdone td{color:var(--faint)}
+tr.isdone td:first-child{font-weight:500}
+tr.isdone .task .ic{color:var(--faint)}
+@media (max-width:640px){.main{gap:14px}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="bar-in">
+    <h1>Pairing &amp; IUE Calendar</h1>
+    <div class="top-actions">
+      <span class="sync" id="sync" role="status"><i></i><span id="syncText">Saved in this browser</span></span>
+      <button class="btn" type="button" id="openSettings">Settings</button>
+    </div>
+  </div>
+</header>
+<div class="page">
+  <div class="banner" id="demoBanner" hidden>
+    <span>You’re looking at <strong>sample data</strong>. Changes made here aren’t saved.</span>
+    <button class="btn primary small" type="button" id="startBtn">Clear samples and start</button>
+  </div>
+
+  <div class="banner" id="noteBanner" hidden>
+    <span id="noteText"></span>
+    <button class="btn small" type="button" id="noteOk">OK</button>
+  </div>
+
+  <div class="layout">
+    <div class="main">
+    <section class="card" aria-label="Month calendar">
+      <div class="cal-head">
+        <div class="cal-title num" id="calTitle"></div>
+        <div class="cal-tools">
+          <div id="focusSlot"></div>
+          <div class="seg" role="group" aria-label="Change month">
+            <button class="seg-btn" type="button" id="prevM" aria-label="Previous month"><svg viewBox="0 0 9 14" aria-hidden="true"><path d="M7.5 1 1.5 7l6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button class="seg-btn" type="button" id="goToday">Today</button>
+            <button class="seg-btn" type="button" id="nextM" aria-label="Next month"><svg viewBox="0 0 9 14" aria-hidden="true"><path d="m1.5 1 6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
           </div>
-
-          <div class="field-group" id="pairingField">
-            <label class="field-label" for="pairingDate">Pairing date</label>
-            <input class="date-input" type="date" id="pairingDate">
-            <p class="hint">Edit any date below. The calendar will recalculate the same protocol timeline automatically.</p>
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="editTarget">Calendar click edits</label>
-            <select class="date-input" id="editTarget">
-              <option value="-1">Pairing date</option>
-              <option value="0">Plug date / E0.5</option>
-              <option value="14">E14.5 IUE</option>
-              <option value="15">E15.5 IUE</option>
-              <option value="20">Birth date / P1</option>
-              <option value="32">P13 two-photon</option>
-              <option value="33">P14 two-photon</option>
-            </select>
-            <p class="hint">Choose a field here, then click any day in the calendar to set it manually.</p>
-          </div>
-
-          <section class="mark-panel" aria-label="Selected date marker controls">
-            <div>
-              <h2>Selected date</h2>
-              <p id="selectedDateText">No date selected yet.</p>
-            </div>
-            <div class="mark-actions">
-              <button class="primary-button" type="button" id="saveMarkButton">Save all marks</button>
-              <button class="secondary-button" type="button" id="cancelMarkButton">Cancel selected</button>
-            </div>
-          </section>
-
-          <div class="field-group">
-            <label class="field-label" for="plugDate">Plug date / E0.5</label>
-            <input class="date-input" type="date" id="plugDate">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="iue145Date">E14.5 IUE</label>
-            <input class="date-input" type="date" id="iue145Date">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="iue155Date">E15.5 IUE</label>
-            <input class="date-input" type="date" id="iue155Date">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="birthDate">Birth date / P1</label>
-            <input class="date-input" type="date" id="birthDate">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="p13Date">P13 two-photon</label>
-            <input class="date-input" type="date" id="p13Date">
-          </div>
-
-          <div class="field-group">
-            <label class="field-label" for="p14Date">P14 two-photon</label>
-            <input class="date-input" type="date" id="p14Date">
-            <p class="hint">Logic: Pairing +1 = E0.5; IUE = E0.5 +14/+15; P1 = E0.5 +20; P13/P14 = P1 +12/+13.</p>
-          </div>
-
-          <div class="action-row">
-            <button class="primary-button" type="button" id="todayButton">Today</button>
-            <button class="secondary-button" type="button" id="clearButton">Clear</button>
-          </div>
-
-          <section class="sync-panel" aria-label="Outlook calendar sync">
-            <div>
-              <h2>Calendar export</h2>
-              <p id="syncStatus">Save marks before exporting or syncing.</p>
-            </div>
-            <div class="sync-actions">
-              <button class="secondary-button" type="button" id="downloadIcsButton">Download saved marks .ics</button>
-              <button class="sync-button" type="button" id="syncButton">Sync saved marks to Outlook</button>
-            </div>
-          </section>
-        </aside>
-
-        <section class="calendar-panel" aria-label="Experiment calendar">
-          <header class="calendar-toolbar">
-            <button class="icon-button" type="button" id="prevMonth" aria-label="Previous month" title="Previous month">
-              <span aria-hidden="true">&lsaquo;</span>
-            </button>
-            <h2 id="monthTitle"></h2>
-            <button class="icon-button" type="button" id="nextMonth" aria-label="Next month" title="Next month">
-              <span aria-hidden="true">&rsaquo;</span>
-            </button>
-          </header>
-
-          <div class="weekday-grid" aria-hidden="true">
-            <span>Mon</span>
-            <span>Tue</span>
-            <span>Wed</span>
-            <span>Thu</span>
-            <span>Fri</span>
-            <span>Sat</span>
-            <span>Sun</span>
-          </div>
-          <div class="calendar-grid" id="calendarGrid" aria-live="polite"></div>
-        </section>
-      </section>
-
-      <section class="summary-band" aria-label="Calculation results">
-        <div class="summary-header">
-          <h2>Calculation Results</h2>
-            <p id="basisText">Edit any protocol date to start calculation.</p>
         </div>
-        <div class="result-grid" id="resultGrid"></div>
-        <section class="saved-section" aria-label="Saved date statistics">
-          <div class="summary-header saved-header">
-            <h2>Saved Marks</h2>
-            <p id="savedStatsText">No saved marks.</p>
-          </div>
-          <div class="saved-list" id="savedList"></div>
-        </section>
-      </section>
-    </main>
+      </div>
+      <div class="filters" id="filters" role="group" aria-label="Event types shown on the calendar"></div>
+      <div class="wd" aria-hidden="true"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      <div class="grid" id="grid"></div>
+      <p class="footnote" id="rule"></p>
+    </section>
+    <section class="card" aria-label="Remaining tasks">
+      <div class="card-head"><h2 id="todoTitle"></h2><span class="sub" id="todoSub"></span></div>
+      <div id="todoBody"></div>
+    </section>
+    </div>
 
-    <dialog class="event-dialog" id="eventDialog">
-      <button class="dialog-close" type="button" id="closeDialog" aria-label="Close" title="Close">×</button>
-      <p class="dialog-type" id="dialogType"></p>
-      <h2 id="dialogTitle"></h2>
-      <p id="dialogDate"></p>
-      <p id="dialogRule"></p>
-    </dialog>
-  </body>
+    <div class="rail">
+      <section class="card" aria-label="Today">
+        <div class="card-head"><h2>Today</h2><span class="sub" id="todayLabel"></span></div>
+        <div id="todayBody"></div>
+      </section>
+      <section class="card" aria-label="Selected day">
+        <div id="dayBody"></div>
+      </section>
+      <section class="card" aria-label="Summary">
+        <div class="card-head"><h2>Summary</h2><span class="sub" id="sumSub"></span></div>
+        <div id="sumBody"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<dialog id="settings" aria-labelledby="dlgTitle">
+  <div class="dlg-head"><h2 id="dlgTitle">Settings</h2><button class="btn icon-btn" type="button" id="closeSettings" aria-label="Close">×</button></div>
+  <div class="dlg-body">
+    <section>
+      <h3>Protocol timing</h3>
+      <div class="group">
+        <div class="field">
+          <label for="pIue">IUE day</label>
+          <input class="inp" type="number" id="pIue" min="1" max="19" step="1" inputmode="numeric">
+          <span class="suffix">days after the plug day <span id="pIueNote"></span></span>
+        </div>
+        <div class="field">
+          <label for="pImg">Imaging days</label>
+          <input class="inp" type="text" id="pImg" placeholder="13, 14" inputmode="numeric" autocomplete="off">
+          <span class="suffix">P-days after birth</span>
+        </div>
+        <div class="field wide">
+          <label for="pP0">Birth day is P0 from</label>
+          <input class="inp" type="date" id="pP0">
+          <span class="suffix">pairing date</span>
+        </div>
+        <label class="check" id="pApplyRow" for="pApply"><input type="checkbox" id="pApply"><span id="pApplyText"></span></label>
+        <div class="row-btns" style="margin-top:14px"><button class="btn primary small" type="button" id="saveProto">Save timing</button></div>
+        <p class="msg" id="protoMsg" role="status"></p>
+        <p class="hint">The plug day counts as E0 and birth is expected at E20. Pairings from the date above count the birth day as P0, so P13 is 13 days after birth; earlier pairings keep P13 at 12 days after birth. Saved timing is used for every pairing you record from now on. Separate several imaging days with commas.</p>
+      </div>
+    </section>
+    <section>
+      <h3>Cage labels</h3>
+      <div class="group">
+        <div id="cageList"></div>
+        <div class="row-btns"><button class="btn small" type="button" id="addCage">Add a cage</button></div>
+        <p class="hint">Saved automatically and reused next time.</p>
+      </div>
+    </section>
+    <section>
+      <h3>Calendar</h3>
+      <div class="group">
+        <div class="field wide">
+          <label for="dimRange">Unselected types</label>
+          <input type="range" id="dimRange" min="0" max="100" step="5">
+          <span class="suffix" id="dimNote"></span>
+        </div>
+        <p class="hint">How transparent the event types you haven’t selected look on the calendar. 0% keeps them solid, 100% hides them.</p>
+      </div>
+    </section>
+    <section id="ghSection">
+      <h3>Cloud sync with GitHub</h3>
+      <div class="group">
+        <div class="field wide">
+          <label for="ghRepo">Repository</label>
+          <input class="inp" type="text" id="ghRepo" placeholder="yourname/MyNeuronLab-data" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <span class="suffix">owner/name</span>
+        </div>
+        <div class="field wide">
+          <label for="ghPath">Data file</label>
+          <input class="inp" type="text" id="ghPath" placeholder="calendar.json" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <span class="suffix">made if missing</span>
+        </div>
+        <div class="field wide">
+          <label for="ghToken">Access token</label>
+          <input class="inp" type="password" id="ghToken" autocomplete="off" spellcheck="false">
+          <span class="suffix">stays on this device</span>
+        </div>
+        <div class="row-btns" style="margin-top:14px"><button class="btn primary small" type="button" id="ghConnect">Connect</button><button class="btn small" type="button" id="ghDisconnect" hidden>Disconnect</button></div>
+        <p class="msg" id="ghMsg" role="status"></p>
+        <p class="hint">Use a private repository and a fine-grained token limited to it, with Contents set to Read and write. After that every change is saved there by itself, and other devices load it when they open this page.</p>
+      </div>
+    </section>
+    <section>
+      <h3>Data</h3>
+      <div class="group">
+        <div class="row-btns">
+          <button class="btn small" type="button" id="exportJson">Export backup</button>
+          <button class="btn small" type="button" id="importBtn">Import backup</button>
+          <button class="btn small" type="button" id="exportIcs">Export calendar (.ics)</button>
+          <button class="btn small danger" type="button" id="wipeBtn">Clear all records</button>
+        </div>
+        <input type="file" id="importFile" accept=".json,.ics,application/json,text/calendar" class="sr" tabindex="-1" aria-label="Choose a backup file">
+        <div id="importConfirm" hidden style="margin-top:12px">
+          <p class="hint" id="importText" style="margin-top:0"></p>
+          <div class="row-btns" style="margin-top:8px"><button class="btn small primary" type="button" id="importYes">Import</button><button class="btn small" type="button" id="importNo">Cancel</button></div>
+        </div>
+        <p class="msg" id="dataMsg" role="status"></p>
+        <p class="hint">Import also takes the .ics file from the old calendar: there, choose “Download saved marks .ics”.</p>
+      </div>
+    </section>
+  </div>
+</dialog>
+
+<script>
+(function(){
+'use strict';
+var KEY='myneuronlab.mating-calendar.v1',VIEW=KEY+'.view',OLDKEY='protocol-calendar-state-v2',MIGR=KEY+'.migrated';
+var OLD_OFFSET={'Pairing date':-1,'Plug date / E0.5':0,'E14.5 IUE':14,'E15.5 IUE':15,'Birth date / P1':20,'P13 two-photon':32,'P14 two-photon':33};
+var NCOL=6,GEST=20,P0_FROM='2026-11-24';
+var MON=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+var MONL=['January','February','March','April','May','June','July','August','September','October','November','December'];
+var WDS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var TYPES=[['mate','Pairing'],['plug','Plug'],['iue','IUE'],['birth','Birth'],['img','Imaging']];
+var LINE=' fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"';
+var ICON={
+  mate:'<circle cx="5" cy="7" r="3.4"'+LINE+'/><circle cx="9" cy="7" r="3.4"'+LINE+'/>',
+  plug:'<path d="M2.5 7.6 5.6 10.6 11.5 3.8"'+LINE+'/>',
+  iue:'<path d="M8.2 1 3 8h3.2L5.6 13 11 5.8H7.6z" fill="currentColor"/>',
+  birth:'<path d="M7 1.2 8.4 5.6 12.8 7 8.4 8.4 7 12.8 5.6 8.4 1.2 7 5.6 5.6z" fill="currentColor"/>',
+  img:'<circle cx="7" cy="7" r="5.2"'+LINE+'/><circle cx="7" cy="7" r="2" fill="currentColor"/>'
+};
+function icon(t){return '<svg class="ic" viewBox="0 0 14 14" aria-hidden="true">'+ICON[t]+'</svg>';}
+var inClaude=!!(window.claude&&typeof window.claude.use==='function');
+function $(id){return document.getElementById(id);}
+function esc(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function pad(n){return String(n).padStart(2,'0');}
+function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+function par(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2]);}
+function addD(s,n){var d=par(s);return iso(new Date(d.getFullYear(),d.getMonth(),d.getDate()+n));}
+function diff(a,b){return Math.round((par(a)-par(b))/864e5);}
+function md(s){var d=par(s);return MON[d.getMonth()]+' '+d.getDate();}
+function longDate(s){var d=par(s);return WDS[d.getDay()]+', '+MON[d.getMonth()]+' '+d.getDate();}
+function mdList(arr){
+  var out=[],last=-1;
+  arr.forEach(function(s){var d=par(s);out.push(d.getMonth()===last?String(d.getDate()):MON[d.getMonth()]+' '+d.getDate());last=d.getMonth();});
+  return out.join(', ');
+}
+function isIso(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&iso(par(s))===s;}
+function uid(p){return p+Date.now().toString(36)+Math.random().toString(36).slice(2,6);}
+
+function normIue(v,fallback){v=Number(v);return (Number.isInteger(v)&&v>=1&&v<=19)?v:fallback;}
+function normImg(v,fallback){
+  if(!Array.isArray(v))return fallback.slice();
+  var a=v.map(Number).filter(function(n,i,all){return Number.isInteger(n)&&n>=1&&n<=60&&all.indexOf(n)===i;}).sort(function(x,y){return x-y;}).slice(0,4);
+  return a.length?a:fallback.slice();
+}
+function defaults(){return {v:3,updatedAt:0,protocol:{iue:15,img:[13,14],p0From:P0_FROM},cages:[1,2,3,4,5].map(function(n){return {id:'c'+n,name:String(n)};}),records:[]};}
+function clean(raw){
+  if(!raw||typeof raw!=='object'||!Array.isArray(raw.cages)||!Array.isArray(raw.records))return null;
+  /* before v3 the IUE day was counted from pairing; from v3 it is counted from the plug day (E0) */
+  var legacy=(Number(raw.v)||1)<3,p=raw.protocol||{};
+  function iueOf(v){v=Number(v);return normIue(legacy&&Number.isFinite(v)?v-1:v,15);}
+  var s={v:3,updatedAt:Number(raw.updatedAt)||0,protocol:{iue:iueOf(p.iue),img:normImg(p.img,[13,14]),p0From:isIso(p.p0From)?p.p0From:P0_FROM},cages:[],records:[]},ids={},seen={};
+  raw.cages.forEach(function(c){
+    if(!c||typeof c.id!=='string'||ids[c.id])return;
+    ids[c.id]=1;var o={id:c.id,name:String(c.name==null?'':c.name).slice(0,20)};if(c.hidden)o.hidden=true;s.cages.push(o);
+  });
+  if(!s.cages.length){s.cages=defaults().cages;s.cages.forEach(function(c){ids[c.id]=1;});}
+  raw.records.forEach(function(r){
+    if(!r||!isIso(r.date)||seen[r.date])return;
+    seen[r.date]=1;
+    var plugs=(Array.isArray(r.plugs)?r.plugs:[]).filter(function(x,i,a){return ids[x]&&a.indexOf(x)===i;});
+    s.records.push({id:typeof r.id==='string'?r.id:uid('r'),date:r.date,plugs:plugs,
+      checked:r.checked===true||plugs.length>0,n:(Number.isInteger(r.n)&&r.n>0)?r.n:null,
+      color:((Number(r.color)||0)%NCOL+NCOL)%NCOL,birth:isIso(r.birth)?r.birth:null,
+      iue:iueOf(r.iue),img:normImg(r.img,[13,14]),outcome:(r.outcome==='yes'||r.outcome==='no')?r.outcome:null});
+  });
+  return s;
+}
+function demoState(today){
+  var s=defaults(),rows=[[-57,['c2','c4'],'no'],[-50,[]],[-43,['c1'],'yes'],[-36,['c3','c5']],[-29,['c1','c2']],[-22,['c4']],[-15,['c1','c3']],[-8,['c2','c3','c5']],[-1,[]]];
+  rows.forEach(function(x,i){s.records.push({id:'demo'+i,date:addD(today,x[0]),plugs:x[1],checked:x[0]<-1,n:5,color:i%NCOL,birth:null,iue:15,img:[13,14],outcome:x[2]||null});});
+  return s;
+}
+
+var state=defaults();
+var lastCalKey='';
+var ui={today:iso(new Date()),month:null,sel:null,focus:null,ended:false,demo:false,confirm:null,show:null,dim:90,edit:null,draft:null,nudge:false};
+ui.sel=ui.today;ui.month=ui.today.slice(0,7);
+try{var sv=JSON.parse(localStorage.getItem(VIEW)||'null');if(sv&&Array.isArray(sv.types)){ui.show={};sv.types.forEach(function(t){if(ICON[t])ui.show[t]=1;});if(Object.keys(ui.show).length===TYPES.length)ui.show=null;}if(sv&&sv.dimV===2&&Number.isFinite(sv.dim))ui.dim=Math.min(100,Math.max(0,Math.round(sv.dim)));}catch(e){}
+function applyDim(){document.documentElement.style.setProperty('--dim',String(1-ui.dim/100));}
+applyDim();
+
+/* ---------- derived ---------- */
+function dates(r){
+  var check=addD(r.date,1),b=r.birth||addD(check,GEST),o=isP0(r)?0:1,imgs=r.img.map(function(p){return addD(b,p-o);});
+  return {mate:r.date,check:check,iue:addD(check,r.iue),birth:b,imgs:imgs,last:imgs[imgs.length-1]};
+}
+function isP0(r){return r.date>=state.protocol.p0From;}
+function isDone(r){var d=dates(r);if(r.plugs.length)return d.last<ui.today;return r.checked||d.check<ui.today;}
+function isLocked(r){return (r.checked||r.plugs.length>0)&&ui.edit!==r.id;}
+function visibleCages(){return state.cages.filter(function(c){return !c.hidden;}).length;}
+function pairedCount(r){var n=r.n||visibleCages();return n+(n===1?' cage':' cages');}
+function cageText(r){return state.cages.filter(function(c){return r.plugs.indexOf(c.id)>=0;}).map(function(c){return c.name||'?';}).join('·');}
+function chipCages(r){
+  var names=state.cages.filter(function(c){return c.id!=='c_unknown'&&r.plugs.indexOf(c.id)>=0;}).map(function(c){return c.name||'?';});
+  var t=names.join('·');
+  return t.length>8?names.length+' cages':t;
+}
+function cageHtml(r){return esc(cageText(r)).replace(/·/g,'·<wbr>');}
+function cagePhrase(r){return (r.plugs.length===1?'cage ':'cages ')+cageText(r);}
+function age(r){
+  var d=dates(r);
+  if(!r.plugs.length)return (r.checked||d.check<ui.today)?'No plug':'Check plug';
+  if(ui.today<d.check)return '—';
+  if(ui.today<d.birth)return 'E'+diff(ui.today,d.check);
+  return 'P'+(diff(ui.today,d.birth)+(isP0(r)?0:1));
+}
+function needsResult(r){return r.plugs.length>0&&isDone(r)&&!r.outcome;}
+function ynHtml(r){
+  return '<span class="yn" role="group" aria-label="Imaging successful?"><button type="button" data-out="yes" data-rid="'+esc(r.id)+'" aria-pressed="'+(r.outcome==='yes')+'">Yes</button><button type="button" data-out="no" data-rid="'+esc(r.id)+'" aria-pressed="'+(r.outcome==='no')+'">No</button></span>';
+}
+function sorted(){return state.records.slice().sort(function(a,b){return a.date<b.date?-1:1;});}
+function byId(id){for(var i=0;i<state.records.length;i++)if(state.records[i].id===id)return state.records[i];return null;}
+function byDate(date){for(var i=0;i<state.records.length;i++)if(state.records[i].date===date)return state.records[i];return null;}
+function eventsOf(r){
+  var d=dates(r),done=isDone(r),c=chipCages(r),out=[];
+  function ev(date,type,ftype,label,cages,soft,p){out.push({r:r,date:date,type:type,ftype:ftype,label:label,cages:cages,soft:!!soft,done:done,p:p});}
+  ev(d.mate,'mate','mate','Pairing',pairedCount(r));
+  if(!r.plugs.length){
+    if(r.checked||d.check<ui.today)ev(d.check,'none','plug','No plug','',true);else ev(d.check,'check','plug','Plug check','');
+    return out;
+  }
+  ev(d.check,'plug','plug','Plug',c);
+  ev(d.iue,'iue','iue','IUE',c);
+  ev(d.birth,'birth','birth','Birth',c);
+  d.imgs.forEach(function(k,i){ev(k,'img','img','P'+r.img[i],c,false,r.img[i]);});
+  return out;
+}
+function eventMap(){
+  var m={};
+  sorted().forEach(function(r){eventsOf(r).forEach(function(e){(m[e.date]=m[e.date]||[]).push(e);});});
+  return m;
+}
+function shown(e){return !ui.show||!!ui.show[e.ftype];}
+function describe(e){
+  var from=' · paired '+md(e.r.date),c=e.r.plugs.length?' · '+cagePhrase(e.r):'';
+  switch(e.type){
+    case 'mate':return 'Pairing · '+pairedCount(e.r);
+    case 'check':return 'Plug check'+from;
+    case 'none':return 'No plug'+from;
+    case 'plug':return 'Plug found (E0)'+c+from;
+    case 'iue':return 'IUE (E'+e.r.iue+')'+c+from;
+    case 'birth':return (e.r.birth?'Birth':'Expected birth (E'+GEST+')')+c+from;
+    default:return 'Imaging (P'+e.p+')'+c+from;
+  }
+}
+function pickColor(){
+  var used={},last=-1,latest='';
+  state.records.forEach(function(r){if(!isDone(r))used[r.color]=1;if(r.date>latest){latest=r.date;last=r.color;}});
+  for(var i=1;i<=NCOL;i++){var c=(last+i)%NCOL;if(!used[c])return c;}
+  return (last+1)%NCOL;
+}
+function chip(e,extra){
+  var m=/^(\d+) cages?$/.exec(e.cages||'');
+  return '<span class="ev t-'+e.ftype+(e.soft?' soft':'')+(extra||'')+'" title="'+esc(describe(e))+'">'+icon(e.ftype)+'<span class="t">'+esc(e.label)+'</span>'+(e.cages?'<span class="c">'+(m?'<span class="cl">'+esc(e.cages)+'</span><span class="cs">×'+m[1]+'</span>':esc(e.cages))+'</span>':'')+'</span>';
+}
+
+/* ---------- render ---------- */
+function render(){
+  $('demoBanner').hidden=!ui.demo;
+  var em=eventMap();
+  renderFilters();renderCal(em);renderTodo(em);renderToday(em);renderDay(em);renderSummary();renderRule();
+}
+function renderFilters(){
+  var h='<span class="lbl">Show</span><button type="button" class="fchip" data-f="all" aria-pressed="'+(!ui.show)+'">All</button>';
+  TYPES.forEach(function(t){
+    h+='<button type="button" class="fchip t-'+t[0]+'" data-f="'+t[0]+'" aria-pressed="'+(!!(ui.show&&ui.show[t[0]]))+'">'+icon(t[0])+t[1]+'</button>';
+  });
+  $('filters').innerHTML=h;
+}
+function renderRule(){
+  var p=state.protocol;
+  $('rule').textContent='Timing for new pairings: the plug day is E0, IUE at E'+p.iue+', birth expected at E'+GEST+', imaging at '+p.img.map(function(n){return 'P'+n;}).join(', ')+' counting the birth day as P0. Pairings before '+md(p.p0From)+' keep the earlier count. Change it in Settings.';
+}
+function renderCal(em){
+  var y=+ui.month.slice(0,4),m=+ui.month.slice(5,7),first=new Date(y,m-1,1);
+  $('calTitle').innerHTML=MONL[m-1]+' <span class="yr">'+y+'</span>';
+  var start=addD(iso(first),-((first.getDay()+6)%7)),f=ui.focus?byId(ui.focus):null,fd=f?dates(f):null,fe={};
+  if(f)eventsOf(f).forEach(function(e){fe[e.date]=1;});
+  var fEnd=f?(f.plugs.length?fd.last:fd.check):'';
+  var h='';
+  for(var i=0;i<42;i++){
+    var k=addD(start,i),cls=['cell'],evs=em[k]||[];
+    if(+k.slice(5,7)!==m)cls.push('out');
+    if(k===ui.today)cls.push('today');
+    if(k===ui.sel)cls.push('sel');
+    if(f&&k>=fd.mate&&k<=fEnd)cls.push(fe[k]?'hit':'span');
+    var label=longDate(k)+(evs.length?': '+evs.map(describe).join('; '):'');
+    h+='<button type="button" class="'+cls.join(' ')+'" data-d="'+k+'" aria-label="'+esc(label)+'"'+(k===ui.sel?' aria-current="date"':'')+'><span class="dn">'+(+k.slice(8))+'</span><span class="evs">';
+    evs.forEach(function(e){h+=chip(e,(shown(e)?'':' dim')+(ui.focus===e.r.id?' foc':''));});
+    h+='</span></button>';
+  }
+  var g=$('grid'),key=ui.month+'|'+(ui.focus||'')+'|'+(ui.show?Object.keys(ui.show).sort().join(','):'all');
+  g.innerHTML=h;g.className='grid'+(f?' focus':'');
+  if(key!==lastCalKey){lastCalKey=key;void g.offsetWidth;g.classList.add('swap');}
+  $('focusSlot').innerHTML=f?'<span class="focus-chip">Highlighting '+md(f.date)+' pairing<button type="button" id="clearFocus" aria-label="Clear highlight">×</button></span>':'';
+}
+/* what is still open: from the selected day on, or every step of the highlighted pairing */
+function taskState(e){
+  var r=e.r,past=e.date<ui.today,done;
+  if(e.type==='mate'||e.type==='plug')done=true;
+  else if(e.type==='check')done=false;
+  else if(e.type==='none')done=!!r.checked;
+  else if(e.type==='img')done=past&&(!isDone(r)||!!r.outcome);
+  else done=past;
+  if(done)return {cls:'done',label:'Done'};
+  if(past)return {cls:'late',label:e.type==='img'?'No result':'Overdue'};
+  if(e.date===ui.today)return {cls:'now',label:'Today'};
+  return {cls:'todo',label:'To do'};
+}
+function taskLabel(e){
+  switch(e.type){
+    case 'mate':return 'Pairing';
+    case 'check':return 'Plug check';
+    case 'none':return e.r.checked?'No plug':'Plug check';
+    case 'plug':return 'Plug found';
+    case 'iue':return 'IUE · E'+e.r.iue;
+    case 'birth':return e.r.birth?'Birth':'Expected birth';
+    default:return 'Imaging · P'+e.p;
+  }
+}
+function renderTodo(em){
+  var f=ui.focus?byId(ui.focus):null,list=[],MAX=60;
+  if(f){list=eventsOf(f).slice().sort(function(a,b){return a.date<b.date?-1:a.date>b.date?1:0;});}
+  else Object.keys(em).sort().forEach(function(k){if(k>=ui.sel)em[k].forEach(function(e){list.push(e);});});
+  var open=0,done=0,states=list.map(function(e){var st=taskState(e);if(st.cls==='done')done++;else open++;return st;});
+  $('todoTitle').textContent=f?'Steps for the '+md(f.date)+' pairing':'From '+longDate(ui.sel);
+  $('todoSub').textContent=list.length?open+' to do · '+done+' done':'';
+  if(!list.length){$('todoBody').innerHTML='<p class="hint">Nothing is scheduled from this day on.</p>';return;}
+  var h='<div class="tbl-wrap"><table class="sum todo"><thead><tr><th>Date</th><th>Task</th><th>Cages</th><th>Paired</th><th>Status</th></tr></thead><tbody>',last='';
+  list.slice(0,MAX).forEach(function(e,i){
+    var st=states[i],first=e.date!==last;last=e.date;
+    h+='<tr class="'+(st.cls==='done'?'isdone':'open')+(first?' first':'')+'">'
+      +'<td class="nw">'+(first?(e.date===ui.today?'<span class="now">Today</span>':longDate(e.date)):'')+'</td>'
+      +'<td class="nw"><span class="task t-'+e.ftype+'">'+icon(e.ftype)+esc(taskLabel(e))+'</span></td>'
+      +'<td>'+(e.type==='mate'?esc(pairedCount(e.r)):(e.r.plugs.length?cageHtml(e.r):'<span class="muted">—</span>'))+'</td>'
+      +'<td class="nw">'+md(e.r.date)+'</td>'
+      +'<td class="nw"><span class="st '+st.cls+'">'+st.label+'</span></td></tr>';
+  });
+  h+='</tbody></table></div>';
+  if(list.length>MAX)h+='<p class="hint" style="margin-top:8px">Showing the first '+MAX+' of '+list.length+'. Pick a later day to see the rest.</p>';
+  $('todoBody').innerHTML=h;
+}
+function renderToday(em){
+  $('todayLabel').textContent=longDate(ui.today);
+  var evs=(em[ui.today]||[]).filter(function(e){return !e.done&&e.type!=='none';}),h='';
+  if(evs.length){
+    h='<ul class="list">'+evs.map(function(e){return '<li class="t-'+e.ftype+'"><span class="dot"></span><span class="big">'+esc(describe(e))+'</span></li>';}).join('')+'</ul>';
+  }else{
+    h='<p class="big">Nothing scheduled today</p>';
+  }
+  var next=null;
+  Object.keys(em).sort().some(function(k){
+    if(k<=ui.today)return false;
+    var c=em[k].filter(function(e){return !e.done&&(e.type==='iue'||e.type==='img'||e.type==='check');});
+    if(c.length){next=c[0];return true;}
+    return false;
+  });
+  if(next){
+    var n=diff(next.date,ui.today);
+    h+='<p class="hint" style="margin-top:10px">Next: '+md(next.date)+' ('+(n===1?'tomorrow':'in '+n+' days')+') · '+esc(describe(next))+'</p>';
+  }
+  var waiting=state.records.filter(needsResult).length;
+  if(waiting)h+='<p class="hint" style="margin-top:10px">'+waiting+' pairing'+(waiting===1?' is':'s are')+' past imaging. Record the result in Summary.</p>';
+  $('todayBody').innerHTML=h;
+}
+function renderDay(em){
+  var s=ui.sel,here=byDate(s),prev=byDate(addD(s,-1)),evs=em[s]||[];
+  var h='<div class="day-head"><h2>'+longDate(s)+(s===ui.today?' · Today':'')+'</h2>';
+  if(here){
+    var ask=ui.confirm==='del:'+here.id;
+    h+='<button type="button" class="btn small'+(ask?' danger':'')+'" id="delMate">'+(ask?'Remove it and its plug records?':'Remove pairing')+'</button>';
+  }else{
+    h+='<button type="button" class="btn primary small" id="addMate">Record pairing</button>';
+  }
+  h+='</div>';
+  if(evs.length){
+    h+='<ul class="list">'+evs.map(function(e){return '<li class="t-'+e.ftype+'"><span class="dot"></span><span>'+esc(describe(e))+'</span></li>';}).join('')+'</ul>';
+  }else{
+    h+='<p class="hint">Nothing scheduled.</p>';
+  }
+  if(prev){
+    var locked=isLocked(prev),editing=!locked;
+    if(editing&&(!ui.draft||ui.draft.id!==prev.id))ui.draft={id:prev.id,plugs:prev.plugs.slice()};
+    var picked=locked?prev.plugs:ui.draft.plugs;
+    h+='<div class="block t-plug"><div class="plug-head"><div><strong>Plug check</strong> <span class="muted">paired '+md(prev.date)+'</span></div>'
+      +(locked?'<button type="button" class="btn small" id="plugEdit">Edit</button>':'')+'</div><div class="chips'+(locked?' locked':'')+'">';
+    state.cages.forEach(function(c){
+      var on=picked.indexOf(c.id)>=0;
+      if(c.hidden&&!on&&prev.plugs.indexOf(c.id)<0)return;
+      h+='<button type="button" class="chip" data-cage="'+esc(c.id)+'" aria-pressed="'+on+'"'+(locked?' aria-disabled="true"':'')+'>'+esc(c.name||'?')+'</button>';
+    });
+    h+='</div>';
+    if(locked){
+      h+='<p class="hint'+(ui.nudge?' warn':'')+'" style="margin-top:10px">'+(ui.nudge?'Locked. Choose Edit to change it.':(prev.plugs.length?'Confirmed and locked. Choose Edit to change it.':'Confirmed: no plug. Choose Edit to change it.'))+'</p>';
+    }else{
+      h+='<div class="row-btns" style="margin-top:12px"><button type="button" class="btn primary small" id="plugOk">Confirm</button>'
+        +(ui.edit===prev.id?'<button type="button" class="btn small" id="plugCancel">Cancel</button>':'')+'</div>'
+        +'<p class="hint" style="margin-top:8px">Tap every cage with a plug, then confirm. Confirming with none selected records no plug.</p>';
+    }
+    h+='</div>';
+  }else if(here){
+    h+='<div class="block"><p class="hint">Open '+md(addD(s,1))+' tomorrow to record which cages have a plug.</p></div>';
+  }
+  $('dayBody').innerHTML=h;
+}
+function dcell(k){
+  if(k===ui.today)return '<span class="now">Today</span>';
+  return '<span'+(k<ui.today?' class="past"':'')+'>'+md(k)+'</span>';
+}
+function imgCell(d){
+  var out=[],last=-1;
+  d.imgs.forEach(function(k){
+    var dt=par(k),txt=k===ui.today?'Today':(dt.getMonth()===last?String(dt.getDate()):MON[dt.getMonth()]+' '+dt.getDate());
+    last=dt.getMonth();
+    out.push(k===ui.today?'<span class="now">Today</span>':'<span'+(k<ui.today?' class="past"':'')+'>'+txt+'</span>');
+  });
+  return out.join(', ');
+}
+function renderSummary(){
+  var all=sorted(),act=all.filter(function(r){return !isDone(r);}),end=all.filter(isDone).reverse();
+  var need=end.filter(needsResult);
+  $('sumSub').textContent=act.length+' in progress'+(need.length?' · '+need.length+' awaiting result':'');
+  var h='';
+  if(act.length){
+    h+='<div class="tbl-wrap"><table class="sum"><thead><tr><th>Paired</th><th>Cages</th><th>Now</th><th>IUE</th><th>Imaging</th></tr></thead><tbody>';
+    act.forEach(function(r){
+      var d=dates(r),on=ui.focus===r.id;
+      h+='<tr class="row'+(on?' on':'')+'" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-pressed="'+on+'">'
+        +'<td class="nw"><span class="mate">'+md(r.date)+'</span></td>'
+        +'<td>'+(r.plugs.length?cageHtml(r):'<span class="muted">—</span>')+'</td>'
+        +'<td class="nw"><span class="age">'+esc(age(r))+'</span></td>'
+        +(r.plugs.length?'<td class="nw">'+dcell(d.iue)+'</td><td class="nw">'+imgCell(d)+'</td>':'<td class="muted">—</td><td class="muted">—</td>')
+        +'</tr>';
+    });
+    h+='</tbody></table></div><p class="hint" style="margin-top:8px">Click a row to highlight that pairing on the calendar. Click again to clear.</p>';
+  }else{
+    h+='<p class="hint">No pairings in progress. Pick a day on the calendar, then choose Record pairing.</p>';
+  }
+  var f=ui.focus?byId(ui.focus):null;
+  if(f){
+    var fd=dates(f);
+    h+='<div class="detail"><div><strong>Paired '+md(f.date)+'</strong>'+(f.plugs.length?' · '+esc(cagePhrase(f)):'')+'</div>';
+    if(f.plugs.length){
+      h+='<div class="steps num">Pairing '+md(fd.mate)+' → Plug '+md(fd.check)+' (E0) → IUE '+md(fd.iue)+' (E'+f.iue+') → Birth '+md(fd.birth)+' → Imaging '+mdList(fd.imgs)+'</div>'
+        +'<div class="steps">Timing used: IUE at E'+f.iue+', imaging at '+f.img.map(function(n){return 'P'+n;}).join(', ')+' (birth day = '+(isP0(f)?'P0':'P1')+')</div>'
+        +'<label for="birthIn">Actual birth date <input type="date" id="birthIn" value="'+fd.birth+'">'+(f.birth?'<button type="button" class="btn small" id="birthReset">Use default</button>':'')+'</label>'
+        +'<p class="hint">Defaults to E'+GEST+', '+GEST+' days after the plug day. Enter the real birth date and imaging moves with it.</p>';
+    }else{
+      h+='<p class="hint">'+((!f.checked&&fd.check>=ui.today)?'Plug not checked yet. Open '+md(fd.check)+' on the calendar to record it.':'No plug this time.')+'</p>';
+    }
+    h+='</div>';
+  }
+  if(need.length){
+    h+='<div class="ask"><div class="ask-h">Imaging dates have passed. Was imaging successful?</div>';
+    need.slice(0,3).forEach(function(r){
+      var d=dates(r);
+      h+='<div class="ask-row"><span class="mate">'+md(r.date)+'</span><span class="info">'+esc(cagePhrase(r))+' · imaged '+mdList(d.imgs)+'</span>'+ynHtml(r)+'</div>';
+    });
+    if(need.length>3)h+='<p class="hint">'+(need.length-3)+' more are waiting. Answer them under Finished below.</p>';
+    h+='</div>';
+  }
+  if(end.length){
+    h+='<div class="ended"><button type="button" class="btn quiet small" id="endToggle" aria-expanded="'+ui.ended+'"><span class="chev'+(ui.ended?' open':'')+'"></span>Finished ('+end.length+')</button>';
+    if(ui.ended){
+      h+='<div class="ended-box"><table class="sum"><thead><tr><th>Paired</th><th>Cages</th><th>IUE</th><th>Imaging</th><th>Imaged?</th></tr></thead><tbody>';
+      end.forEach(function(r){
+        var d=dates(r),on=ui.focus===r.id;
+        h+='<tr class="row'+(on?' on':'')+(r.outcome==='no'?' failed':'')+'" data-id="'+esc(r.id)+'" tabindex="0" role="button" aria-pressed="'+on+'">'
+          +'<td class="nw"><span class="mate" style="font-weight:500">'+md(r.date)+'</span></td>'
+          +(r.plugs.length?'<td>'+cageHtml(r)+'</td><td class="nw">'+md(d.iue)+'</td><td class="nw">'+mdList(d.imgs)+'</td><td class="nw">'+ynHtml(r)+'</td>':'<td class="muted nw">No plug</td><td class="muted">—</td><td class="muted">—</td><td class="muted">—</td>')
+          +'</tr>';
+      });
+      h+='</tbody></table></div>';
+    }
+    h+='</div>';
+  }
+  $('sumBody').innerHTML=h;
+}
+function renderCages(){
+  var h='',n=0;
+  state.cages.forEach(function(c){
+    if(c.hidden)return;n++;
+    h+='<div class="cage-row"><span>Cage '+n+'</span><input type="text" id="cage-'+esc(c.id)+'" data-cage-name="'+esc(c.id)+'" value="'+esc(c.name)+'" maxlength="20" aria-label="Label for cage '+n+'"><button type="button" class="btn small quiet" data-cage-del="'+esc(c.id)+'">Remove</button></div>';
+  });
+  $('cageList').innerHTML=h;
+}
+function iueNote(){
+  var v=Number($('pIue').value);
+  $('pIueNote').textContent=(Number.isInteger(v)&&v>=1&&v<=19)?'= E'+v:'';
+}
+function renderProto(){
+  $('pIue').value=state.protocol.iue;$('pImg').value=state.protocol.img.join(', ');$('pP0').value=state.protocol.p0From;iueNote();
+  var n=state.records.filter(function(r){return !isDone(r);}).length;
+  $('pApplyRow').hidden=!n;$('pApply').checked=false;
+  $('pApplyText').textContent='Also update the '+n+' pairing'+(n===1?'':'s')+' in progress';
+  protoSay('',false);
+  $('dimRange').value=ui.dim;dimNote();
+}
+function dimNote(){$('dimNote').textContent=ui.dim+'% transparent';}
+function protoSay(t,err){var el=$('protoMsg');el.textContent=t;el.className='msg'+(err?' err':'');}
+
+/* ---------- records from the old calendar ---------- */
+function oldPairingsFromState(raw){
+  if(!raw||typeof raw!=='object'||!Array.isArray(raw.savedMarks))return null;
+  var set={};
+  raw.savedMarks.forEach(function(m){var o=Number(m&&m.offset);if(m&&isIso(m.date)&&Number.isFinite(o))set[addD(m.date,-o-1)]=1;});
+  return Object.keys(set).sort();
+}
+function oldPairingsFromIcs(text){
+  if(!/BEGIN:VCALENDAR/.test(text))return null;
+  var set={};
+  text.split('BEGIN:VEVENT').slice(1).forEach(function(b){
+    var sm=/SUMMARY:(.*)/.exec(b),d=/DTSTART(?:;VALUE=DATE)?:(\d{4})(\d{2})(\d{2})/.exec(b);
+    if(!sm||!d)return;
+    var off=OLD_OFFSET[sm[1].trim().replace(/\\([,;\\])/g,'$1')];
+    if(off===undefined)return;
+    set[addD(d[1]+'-'+d[2]+'-'+d[3],-off-1)]=1;
+  });
+  return Object.keys(set).sort();
+}
+function unknownCage(){
+  for(var i=0;i<state.cages.length;i++)if(state.cages[i].id==='c_unknown')return 'c_unknown';
+  state.cages.push({id:'c_unknown',name:'?',hidden:true});
+  return 'c_unknown';
+}
+function mergeOld(list){
+  var added=0;
+  list.forEach(function(d){
+    if(byDate(d))return;
+    state.records.push({id:uid('r'),date:d,plugs:[unknownCage()],checked:true,n:null,color:pickColor(),birth:null,iue:state.protocol.iue,img:state.protocol.img.slice(),outcome:null});
+    added++;
+  });
+  return added;
+}
+function leaveDemo(){
+  if(!ui.demo)return;
+  var cages=state.cages,proto=state.protocol;state=defaults();state.cages=cages;state.protocol=proto;ui.demo=false;ui.focus=null;
+}
+function autoMigrate(){
+  try{
+    if(localStorage.getItem(MIGR))return 0;
+    var t=localStorage.getItem(OLDKEY);if(!t)return 0;
+    var list=oldPairingsFromState(JSON.parse(t));
+    localStorage.setItem(MIGR,'1');
+    if(!list||!list.length)return 0;
+    leaveDemo();
+    var n=mergeOld(list);
+    if(n){state.updatedAt=Date.now();saveLocal();}
+    return n;
+  }catch(e){return 0;}
+}
+
+/* ---------- storage ---------- */
+function saveLocal(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}}
+function loadLocal(){try{var t=localStorage.getItem(KEY);return t?clean(JSON.parse(t)):null;}catch(e){return null;}}
+function saveView(){try{var v=ui.show?{types:Object.keys(ui.show)}:{all:true};v.dim=ui.dim;v.dimV=2;localStorage.setItem(VIEW,JSON.stringify(v));}catch(e){}}
+var cloud={ref:null,busy:false,dirty:false,timer:null,retried:false};
+var GHKEY=KEY+'.github',gh={cfg:null,sha:null,busy:false,dirty:false,pending:false,timer:null,last:0};
+try{var gc=JSON.parse(localStorage.getItem(GHKEY)||'null');if(gc&&typeof gc.repo==='string'&&typeof gc.token==='string'&&gc.token)gh.cfg={repo:gc.repo,path:gc.path||'calendar.json',token:gc.token};}catch(e){}
+function setSync(kind){
+  var g=!!gh.cfg;
+  var map={local:['','Saved in this browser'],
+    ready:['ok',g?'Connected to GitHub. Saving starts with your first record':'Connected. Saving starts with your first record'],
+    connecting:['',g?'Connecting to GitHub…':'Connecting…'],saving:['','Saving…'],
+    synced:['ok',g?'Saved to GitHub':'Saved to your account'],
+    offline:['bad',g?'Can’t reach GitHub. Saved in this browser for now':'Can’t reach the cloud. Saved in this browser for now'],
+    auth:['bad','GitHub rejected the token. Update it in Settings'],
+    badfile:['bad','The data file on GitHub can’t be read. Check it in Settings']};
+  var v=map[kind]||map.local;$('sync').className='sync '+v[0];$('syncText').textContent=v[1];
+}
+function commit(){
+  ui.confirm=null;
+  if(!ui.demo){state.updatedAt=Date.now();saveLocal();queueCloud();queueGh();}
+  render();
+}
+function queueCloud(){
+  if(!cloud.ref)return;
+  cloud.dirty=true;clearTimeout(cloud.timer);cloud.timer=setTimeout(flushCloud,700);
+}
+function flushCloud(){
+  if(cloud.busy||!cloud.dirty||!cloud.ref)return;
+  cloud.busy=true;cloud.dirty=false;setSync('saving');
+  cloud.ref.set(JSON.parse(JSON.stringify(state))).then(function(){
+    cloud.retried=false;setSync('synced');
+  },function(e){
+    if(e&&e.code==='unavailable'&&!cloud.retried){cloud.retried=true;cloud.dirty=true;setTimeout(flushCloud,1500+Math.random()*1500);}
+    else setSync('offline');
+  }).then(function(){cloud.busy=false;if(cloud.dirty&&!cloud.retried)flushCloud();});
+}
+function adopt(s){state=s;ui.demo=false;if(ui.focus&&!byId(ui.focus))ui.focus=null;saveLocal();render();if($('settings').open){renderCages();renderProto();}}
+function initCloud(){
+  if(!inClaude){if(gh.cfg){setSync('connecting');ghRefresh();}else setSync('local');return;}
+  setSync('connecting');
+  var timer=setTimeout(function(){if(!cloud.ref)setSync('offline');},10000);
+  Promise.all([window.claude.use('db'),window.claude.use('user')]).then(function(a){
+    var db=a[0],user=a[1];
+    if(!db||!user)throw new Error('absent');
+    return user.id().then(function(id){
+      if(!id)throw new Error('no id');
+      var ref=db.doc('data/users/'+id+'/calendar');
+      return ref.get().then(function(snap){
+        clearTimeout(timer);cloud.ref=ref;
+        var remote=snap.exists?clean(JSON.parse(JSON.stringify(snap.data()))):null;
+        if(remote&&(ui.demo||remote.updatedAt>=state.updatedAt)){adopt(remote);setSync('synced');}
+        else if(!ui.demo&&state.updatedAt>0){queueCloud();}
+        else setSync(ui.demo?'ready':'synced');
+        ref.onSnapshot(function(sn){
+          if(!sn.exists||sn.metadata.hasPendingWrites)return;
+          var s=clean(JSON.parse(JSON.stringify(sn.data())));
+          if(s&&s.updatedAt>state.updatedAt)adopt(s);
+        },function(){cloud.ref=null;setSync('offline');});
+      });
+    });
+  }).catch(function(){clearTimeout(timer);cloud.ref=null;setSync('local');});
+}
+
+/* ---------- GitHub sync: the data lives as one JSON file in the user's own repository ---------- */
+function b64enc(str){var bytes=new TextEncoder().encode(str),bin='';for(var i=0;i<bytes.length;i++)bin+=String.fromCharCode(bytes[i]);return btoa(bin);}
+function b64dec(b64){var bin=atob(String(b64).replace(/\s/g,'')),bytes=new Uint8Array(bin.length);for(var i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);return new TextDecoder().decode(bytes);}
+function ghPath(repo,rest){return 'https://api.github.com/repos/'+repo.split('/').map(encodeURIComponent).join('/')+(rest||'');}
+function ghFile(cfg){return ghPath(cfg.repo,'/contents/'+cfg.path.split('/').map(encodeURIComponent).join('/'));}
+function ghCall(cfg,method,url,body){
+  return fetch(url,{method:method,cache:'no-store',headers:{'Accept':'application/vnd.github+json','Authorization':'Bearer '+cfg.token,'X-GitHub-Api-Version':'2022-11-28'},body:body?JSON.stringify(body):undefined});
+}
+function ghCheck(r){
+  if(r.status===401||r.status===403)throw {code:'auth'};
+  if(!r.ok)throw {code:'http',status:r.status};
+  return r;
+}
+async function ghPull(){
+  var r=await ghCall(gh.cfg,'GET',ghFile(gh.cfg));
+  if(r.status===404){gh.sha=null;return null;}
+  ghCheck(r);
+  var j=await r.json(),parsed=null;
+  gh.sha=j.sha||null;
+  try{parsed=clean(JSON.parse(b64dec(j.content||'')));}catch(e){}
+  if(!parsed)throw {code:'badfile'};
+  return parsed;
+}
+async function ghPush(){
+  var body={message:'Calendar update '+new Date().toISOString().slice(0,16).replace('T',' ')+' UTC',content:b64enc(JSON.stringify(state,null,1))};
+  if(gh.sha)body.sha=gh.sha;
+  var r=await ghCall(gh.cfg,'PUT',ghFile(gh.cfg),body);
+  if(r.status===409||r.status===422)throw {code:'conflict'};
+  ghCheck(r);
+  var j=await r.json();
+  gh.sha=(j.content&&j.content.sha)||gh.sha;
+}
+function ghFail(e){
+  if(e&&e.code==='auth')setSync('auth');
+  else if(e&&e.code==='badfile')setSync('badfile');
+  else{gh.pending=true;setSync('offline');}
+}
+function queueGh(){
+  if(!gh.cfg||ui.demo)return;
+  gh.dirty=true;clearTimeout(gh.timer);gh.timer=setTimeout(ghFlush,1500);
+}
+async function ghFlush(){
+  if(gh.busy||!gh.dirty||!gh.cfg)return;
+  gh.busy=true;gh.dirty=false;gh.pending=false;setSync('saving');
+  try{
+    try{await ghPush();}
+    catch(e){
+      if(!e||e.code!=='conflict')throw e;
+      /* another device saved first: keep this device's records, add the pairings only the other one has, save again */
+      var remote=await ghPull();
+      if(remote){
+        var have={},ids={},added=0;
+        state.records.forEach(function(r){have[r.date]=1;});
+        state.cages.forEach(function(c){ids[c.id]=1;});
+        remote.cages.forEach(function(c){if(!ids[c.id]){var o={id:c.id,name:c.name,hidden:true};state.cages.push(o);}});
+        remote.records.forEach(function(r){if(!have[r.date]){state.records.push(r);added++;}});
+        if(added){saveLocal();render();}
+      }
+      await ghPush();
+    }
+    setSync('synced');
+  }catch(e2){ghFail(e2);}
+  gh.busy=false;
+  if(gh.dirty)ghFlush();
+}
+async function ghRefresh(first){
+  if(!gh.cfg||gh.busy||gh.dirty)return null;
+  if(gh.pending){gh.dirty=true;return ghFlush();}
+  gh.busy=true;gh.last=Date.now();
+  var out=null;
+  try{
+    var remote=await ghPull();
+    if(remote&&first&&!ui.demo){
+      /* first connection on this device: what is on GitHub wins, pairings only this device has are added */
+      var have={},ids={},extra,cages;
+      remote.records.forEach(function(r){have[r.date]=1;});
+      remote.cages.forEach(function(c){ids[c.id]=1;});
+      extra=state.records.filter(function(r){return !have[r.date];});
+      cages=state.cages.filter(function(c){return !ids[c.id];});
+      adopt(remote);out='loaded';
+      if(extra.length){
+        cages.forEach(function(c){state.cages.push({id:c.id,name:c.name,hidden:true});});
+        extra.forEach(function(r){state.records.push(r);});
+        state.updatedAt=Date.now();saveLocal();render();gh.dirty=true;out={merged:extra.length};
+      }
+    }
+    else if(remote&&(ui.demo||remote.updatedAt>state.updatedAt)){adopt(remote);out='loaded';}
+    else if(!ui.demo&&state.updatedAt>0&&(!remote||remote.updatedAt<state.updatedAt)){gh.dirty=true;out='uploaded';}
+    else out=remote?'same':'empty';
+    setSync(out==='empty'&&ui.demo?'ready':'synced');
+  }catch(e){ghFail(e);out={error:e};}
+  gh.busy=false;
+  if(gh.dirty)await ghFlush();
+  return out;
+}
+document.addEventListener('visibilitychange',function(){if(!document.hidden&&gh.cfg&&Date.now()-gh.last>30000)ghRefresh();});
+function ghSay(t,err){var el=$('ghMsg');el.textContent=t;el.className='msg'+(err?' err':'');}
+function renderGh(){
+  $('ghSection').hidden=inClaude;
+  if(inClaude)return;
+  $('ghRepo').value=gh.cfg?gh.cfg.repo:'';$('ghPath').value=gh.cfg?gh.cfg.path:'calendar.json';
+  $('ghToken').value='';$('ghToken').placeholder=gh.cfg?'Saved on this device':'github_pat_…';
+  $('ghConnect').textContent=gh.cfg?'Update':'Connect';$('ghDisconnect').hidden=!gh.cfg;
+  ghSay(gh.cfg?'Connected to '+gh.cfg.repo+'.':'',false);
+}
+async function ghConnect(){
+  var repo=$('ghRepo').value.trim().replace(/^https?:\/\/github\.com\//,'').replace(/\.git$/,'').replace(/\/+$/,'');
+  var path=($('ghPath').value.trim()||'calendar.json').replace(/^\/+/,'');
+  var token=$('ghToken').value.trim()||(gh.cfg?gh.cfg.token:'');
+  if(!/^[\w.-]+\/[\w.-]+$/.test(repo)){ghSay('Repository: write it as owner/name, for example yourname/MyNeuronLab-data.',true);$('ghRepo').focus();return;}
+  if(!/^[\w.\-\/ ]+\.json$/.test(path)){ghSay('Data file: use a name ending in .json, for example calendar.json.',true);$('ghPath').focus();return;}
+  if(!token){ghSay('Access token: paste the token you created on GitHub.',true);$('ghToken').focus();return;}
+  var cfg={repo:repo,path:path,token:token};
+  ghSay('Checking…',false);
+  try{
+    var r=await ghCall(cfg,'GET',ghPath(repo));
+    if(r.status===401){ghSay('GitHub rejected the token. Check that it was copied in full and hasn’t expired.',true);return;}
+    if(r.status===404||r.status===403){ghSay('That repository wasn’t found, or the token isn’t allowed to open it.',true);return;}
+    if(!r.ok){ghSay('GitHub answered with an error ('+r.status+'). Try again in a moment.',true);return;}
+  }catch(e){ghSay('GitHub can’t be reached right now. Check the connection and try again.',true);return;}
+  clearTimeout(gh.timer);gh.cfg=cfg;gh.sha=null;gh.dirty=false;gh.pending=false;
+  try{localStorage.setItem(GHKEY,JSON.stringify(cfg));}catch(e){}
+  setSync('connecting');
+  var out=await ghRefresh(true);
+  renderGh();
+  if(out&&out.merged)ghSay('Connected. Loaded the records from GitHub and added '+out.merged+' pairing'+(out.merged===1?'':'s')+' that only this device had.',false);
+  else if(out==='loaded')ghSay('Connected. Loaded '+state.records.length+' pairing'+(state.records.length===1?'':'s')+' from GitHub.',false);
+  else if(out==='uploaded')ghSay('Connected. Your records were saved to GitHub.',false);
+  else if(out==='empty')ghSay('Connected. Records will be saved to GitHub as you add them.',false);
+  else if(out==='same')ghSay('Connected. Everything is up to date.',false);
+  else if(out&&out.error&&out.error.code==='badfile')ghSay('Connected, but '+path+' in that repository isn’t a calendar data file. Pick another file name.',true);
+  else if(out&&out.error&&out.error.code==='auth')ghSay('The token can open the repository but can’t read its files. Give it Contents: Read and write.',true);
+  else ghSay('Connected, but the data file couldn’t be read just now. It will be tried again.',true);
+}
+
+/* ---------- files ---------- */
+function say(t){$('dataMsg').textContent=t;}
+function saveFile(name,text,mime){
+  if(inClaude){
+    return window.claude.use('downloads').then(function(dl){
+      if(!dl){say('Files can’t be downloaded here right now.');return;}
+      return dl.save({filename:name,data:text}).then(function(){say('Exported '+name);},function(e){if(!e||e.code!=='declined')say('The export didn’t go through. Try again.');});
+    });
+  }
+  var a=document.createElement('a'),url=URL.createObjectURL(new Blob([text],{type:mime}));
+  a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();
+  setTimeout(function(){URL.revokeObjectURL(url);},1500);say('Exported '+name);
+  return Promise.resolve();
+}
+function icsEsc(s){return String(s).replace(/\\/g,'\\\\').replace(/\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');}
+function buildIcs(){
+  var stamp=new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+  var L=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MyNeuronLab//Pairing Calendar//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH'],n=0;
+  sorted().filter(function(r){return !isDone(r);}).forEach(function(r){
+    eventsOf(r).forEach(function(e){
+      if(e.type!=='iue'&&e.type!=='img'&&e.type!=='check'&&e.type!=='birth')return;
+      n++;
+      var c=cageText(r),key=e.type==='img'?'img-p'+e.p:e.type;
+      var title={iue:'IUE E'+r.iue,img:'Imaging P'+e.p,check:'Plug check',birth:'Expected birth E'+GEST}[e.type]+(c?' | Cages '+c:'')+' | Paired '+md(r.date);
+      L.push('BEGIN:VEVENT','UID:'+r.id+'-'+key+'@myneuronlab-mating-calendar','DTSTAMP:'+stamp,
+        'DTSTART;VALUE=DATE:'+e.date.replace(/-/g,''),'DTEND;VALUE=DATE:'+addD(e.date,1).replace(/-/g,''),
+        'SUMMARY:'+icsEsc(title),'DESCRIPTION:'+icsEsc(describe(e)),
+        'BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEsc(title),'TRIGGER:-PT15H','END:VALARM','END:VEVENT');
+    });
+  });
+  L.push('END:VCALENDAR');
+  return {text:L.join('\r\n')+'\r\n',count:n};
+}
+
+/* ---------- actions ---------- */
+function setFocus(id){
+  if(ui.focus===id){ui.focus=null;render();return;}
+  var r=byId(id);if(!r)return;
+  ui.focus=id;
+  var d=dates(r),cand=r.plugs.length?[d.check,d.iue,d.birth].concat(d.imgs).sort():[d.check],target=d.mate;
+  for(var i=0;i<cand.length;i++){if(cand[i]>=ui.today){target=cand[i];break;}}
+  if(isDone(r))target=d.mate;
+  ui.month=target.slice(0,7);
+  render();
+}
+function shiftMonth(n){var y=+ui.month.slice(0,4),m=+ui.month.slice(5,7),d=new Date(y,m-1+n,1);ui.month=iso(d).slice(0,7);render();}
+var pendingImport=null,pendingOld=null;
+
+$('grid').addEventListener('click',function(e){
+  var b=e.target.closest('.cell');if(!b)return;
+  ui.sel=b.dataset.d;ui.confirm=null;ui.edit=null;ui.draft=null;ui.nudge=false;render();
+  var again=$('grid').querySelector('.cell.sel');if(again)again.focus({preventScroll:true});
+});
+$('filters').addEventListener('click',function(e){
+  var b=e.target.closest('.fchip');if(!b)return;
+  var t=b.dataset.f;
+  if(t==='all'){ui.show=ui.show?null:{};}
+  else{
+    if(!ui.show)ui.show={};
+    if(ui.show[t])delete ui.show[t];else ui.show[t]=1;
+    if(Object.keys(ui.show).length===TYPES.length)ui.show=null;
+  }
+  saveView();render();
+  var again=$('filters').querySelector('[data-f="'+t+'"]');if(again)again.focus({preventScroll:true});
+});
+$('prevM').addEventListener('click',function(){shiftMonth(-1);});
+$('nextM').addEventListener('click',function(){shiftMonth(1);});
+$('goToday').addEventListener('click',function(){ui.month=ui.today.slice(0,7);ui.sel=ui.today;ui.confirm=null;ui.edit=null;ui.draft=null;ui.nudge=false;render();});
+$('focusSlot').addEventListener('click',function(e){if(e.target.closest('#clearFocus')){ui.focus=null;render();}});
+$('dayBody').addEventListener('click',function(e){
+  var t=e.target.closest('button');if(!t)return;
+  if(t.id==='addMate'){
+    if(byDate(ui.sel))return;
+    state.records.push({id:uid('r'),date:ui.sel,plugs:[],checked:false,n:visibleCages(),color:pickColor(),birth:null,iue:state.protocol.iue,img:state.protocol.img.slice(),outcome:null});commit();
+  }else if(t.id==='delMate'){
+    var r=byDate(ui.sel);if(!r)return;
+    if(r.plugs.length&&ui.confirm!=='del:'+r.id){ui.confirm='del:'+r.id;render();return;}
+    state.records=state.records.filter(function(x){return x.id!==r.id;});
+    if(ui.focus===r.id)ui.focus=null;commit();
+  }else if(t.dataset.cage){
+    var p=byDate(addD(ui.sel,-1));if(!p)return;
+    if(isLocked(p)){ui.nudge=true;render();return;}
+    if(!ui.draft||ui.draft.id!==p.id)ui.draft={id:p.id,plugs:p.plugs.slice()};
+    var i=ui.draft.plugs.indexOf(t.dataset.cage);
+    if(i>=0)ui.draft.plugs.splice(i,1);else ui.draft.plugs.push(t.dataset.cage);
+    render();
+    var again=$('dayBody').querySelector('[data-cage="'+t.dataset.cage+'"]');if(again)again.focus({preventScroll:true});
+  }else if(t.id==='plugOk'){
+    var q=byDate(addD(ui.sel,-1));if(!q)return;
+    var chosen=(ui.draft&&ui.draft.id===q.id)?ui.draft.plugs:q.plugs;
+    q.plugs=state.cages.filter(function(c){return chosen.indexOf(c.id)>=0;}).map(function(c){return c.id;});
+    q.checked=true;if(!q.plugs.length){q.birth=null;q.outcome=null;}
+    ui.edit=null;ui.draft=null;ui.nudge=false;commit();
+  }else if(t.id==='plugEdit'){
+    var e2=byDate(addD(ui.sel,-1));if(!e2)return;
+    ui.edit=e2.id;ui.draft={id:e2.id,plugs:e2.plugs.slice()};ui.nudge=false;render();
+  }else if(t.id==='plugCancel'){
+    ui.edit=null;ui.draft=null;ui.nudge=false;render();
+  }
+});
+function sumClick(e){
+  var t=e.target;
+  if(t.closest('#endToggle')){ui.ended=!ui.ended;render();return;}
+  var ob=t.closest('[data-out]');
+  if(ob){var rr=byId(ob.dataset.rid);if(rr){rr.outcome=rr.outcome===ob.dataset.out?null:ob.dataset.out;commit();var back=$('sumBody').querySelector('[data-rid="'+ob.dataset.rid+'"][data-out="'+ob.dataset.out+'"]');if(back)back.focus({preventScroll:true});}return;}
+  if(t.closest('#birthReset')){var f=byId(ui.focus);if(f){f.birth=null;commit();}return;}
+  if(t.closest('.detail'))return;
+  var row=t.closest('tr.row');if(row){var id=row.dataset.id;setFocus(id);var again=$('sumBody').querySelector('tr.row.on');if(again)again.focus({preventScroll:true});}
+}
+$('sumBody').addEventListener('click',sumClick);
+$('sumBody').addEventListener('keydown',function(e){
+  if((e.key==='Enter'||e.key===' ')&&e.target.matches('tr.row')){e.preventDefault();sumClick(e);}
+});
+$('sumBody').addEventListener('change',function(e){
+  if(e.target.id!=='birthIn')return;
+  var f=byId(ui.focus);if(!f)return;
+  var v=e.target.value;
+  if(!isIso(v)){render();return;}
+  f.birth=(v===addD(f.date,GEST+1))?null:v;commit();
+});
+
+$('openSettings').addEventListener('click',function(){renderCages();renderProto();renderGh();say('');$('importConfirm').hidden=true;$('settings').showModal();});
+$('closeSettings').addEventListener('click',function(){$('settings').close();});
+$('settings').addEventListener('click',function(e){if(e.target===$('settings'))$('settings').close();});
+$('dimRange').addEventListener('input',function(){ui.dim=Math.min(100,Math.max(0,Number(this.value)||0));applyDim();dimNote();saveView();});
+$('ghConnect').addEventListener('click',function(){ghConnect();});
+$('ghDisconnect').addEventListener('click',function(){
+  clearTimeout(gh.timer);gh.cfg=null;gh.sha=null;gh.dirty=false;gh.pending=false;
+  try{localStorage.removeItem(GHKEY);}catch(e){}
+  setSync('local');renderGh();ghSay('Disconnected. Records stay in this browser; the file on GitHub is left as it is.',false);
+});
+$('pIue').addEventListener('input',function(){iueNote();protoSay('',false);});
+$('pImg').addEventListener('input',function(){protoSay('',false);});
+$('pP0').addEventListener('input',function(){protoSay('',false);});
+$('saveProto').addEventListener('click',function(){
+  var raw=$('pIue').value.trim(),v=Number(raw);
+  if(raw===''||!Number.isInteger(v)||v<1||v>19){protoSay('IUE day: enter a whole number from 1 to 19.',true);$('pIue').focus();return;}
+  var parts=$('pImg').value.split(/[\s,，;、]+/).filter(Boolean),nums=parts.map(Number);
+  var bad=!parts.length||parts.length>4||nums.some(function(n){return !Number.isInteger(n)||n<1||n>60;});
+  if(bad){protoSay('Imaging days: enter one to four whole numbers from 1 to 60, such as 13, 14.',true);$('pImg').focus();return;}
+  var from=$('pP0').value;
+  if(!isIso(from)){protoSay('P0 rule: choose the pairing date it starts from.',true);$('pP0').focus();return;}
+  var img=normImg(nums,[13,14]),apply=$('pApply').checked&&!$('pApplyRow').hidden,n=0;
+  state.protocol={iue:v,img:img,p0From:from};
+  if(apply)state.records.forEach(function(r){if(!isDone(r)){r.iue=v;r.img=img.slice();n++;}});
+  commit();renderProto();
+  protoSay(ui.demo?'Applied to the sample data. Nothing is saved until you clear the samples.':('Saved. '+(apply?n+' pairing'+(n===1?'':'s')+' in progress updated, and new':'New')+' pairings use this timing.'),false);
+});
+var nameTimer=null;
+$('cageList').addEventListener('input',function(e){
+  var id=e.target.dataset.cageName;if(!id)return;
+  state.cages.forEach(function(c){if(c.id===id)c.name=e.target.value.trim().slice(0,20);});
+  clearTimeout(nameTimer);nameTimer=setTimeout(function(){commit();say(ui.demo?'Sample mode: labels aren’t saved yet.':'Saved.');},350);
+});
+$('cageList').addEventListener('click',function(e){
+  var t=e.target.closest('[data-cage-del]');if(!t)return;
+  var id=t.dataset.cageDel,vis=state.cages.filter(function(c){return !c.hidden;});
+  if(vis.length<=1){say('Keep at least one cage.');return;}
+  var used=state.records.some(function(r){return r.plugs.indexOf(id)>=0;});
+  if(used)state.cages.forEach(function(c){if(c.id===id)c.hidden=true;});
+  else state.cages=state.cages.filter(function(c){return c.id!==id;});
+  commit();renderCages();say(used?'Removed. Older records that used it keep the label.':'Removed.');
+});
+$('addCage').addEventListener('click',function(){
+  var n=state.cages.filter(function(c){return !c.hidden;}).length+1;
+  state.cages.push({id:uid('c'),name:String(n)});commit();renderCages();
+  var ins=$('cageList').querySelectorAll('input');if(ins.length){var el=ins[ins.length-1];el.focus();el.select();}
+});
+$('exportJson').addEventListener('click',function(){saveFile('pairing-calendar-backup-'+ui.today+'.json',JSON.stringify(state,null,2),'application/json');});
+$('exportIcs').addEventListener('click',function(){
+  var r=buildIcs();if(!r.count){say('Nothing to export yet.');return;}
+  saveFile('pairing-calendar-'+ui.today+'.ics',r.text,'text/calendar;charset=utf-8');
+});
+$('importBtn').addEventListener('click',function(){$('importFile').value='';$('importFile').click();});
+$('importFile').addEventListener('change',function(){
+  var f=this.files&&this.files[0];if(!f)return;
+  var rd=new FileReader();
+  rd.onload=function(){
+    var text=String(rd.result),parsed=null,s=null,old=null;
+    try{parsed=JSON.parse(text);}catch(e){}
+    if(parsed){s=clean(parsed);if(!s)old=oldPairingsFromState(parsed);}else{old=oldPairingsFromIcs(text);}
+    pendingImport=null;pendingOld=null;
+    if(!s&&old){
+      if(!old.length){say('No saved pairings from the old calendar were found in that file.');return;}
+      var fresh=old.filter(function(d){return ui.demo||!byDate(d);}).length;
+      if(!fresh){say('All '+old.length+' pairing'+(old.length===1?'':'s')+' from the old calendar are already here.');return;}
+      pendingOld=old;
+      $('importText').textContent='Found '+old.length+' pairing'+(old.length===1?'':'s')+' from the old calendar, '+fresh+' not yet here. They will be added to your records. The old calendar didn’t store cage numbers, so they show as “?” until you set them.';
+      $('importConfirm').hidden=false;say('');return;
+    }
+    if(!s){say('That file isn’t a backup from this page or the old calendar, so nothing was imported.');return;}
+    pendingImport=s;
+    var c=s.cages.filter(function(x){return !x.hidden;}).length;
+    $('importText').textContent='This backup has '+s.records.length+' pairing'+(s.records.length===1?'':'s')+' and '+c+' cage'+(c===1?'':'s')+'. Importing replaces everything here.';
+    $('importConfirm').hidden=false;say('');
+  };
+  rd.onerror=function(){say('The file couldn’t be read. Try again.');};
+  rd.readAsText(f);
+});
+$('importYes').addEventListener('click',function(){
+  if(pendingOld){
+    leaveDemo();var n=mergeOld(pendingOld);pendingOld=null;$('importConfirm').hidden=true;commit();renderCages();renderProto();
+    say('Added '+n+' pairing'+(n===1?'':'s')+' from the old calendar.');return;
+  }
+  if(!pendingImport)return;
+  state=pendingImport;pendingImport=null;ui.demo=false;ui.focus=null;$('importConfirm').hidden=true;commit();renderCages();renderProto();say('Imported.');
+});
+$('importNo').addEventListener('click',function(){pendingImport=null;pendingOld=null;$('importConfirm').hidden=true;});
+var wipeArmed=false;
+$('wipeBtn').addEventListener('click',function(){
+  if(!wipeArmed){wipeArmed=true;this.textContent='Click again to clear';setTimeout(function(){wipeArmed=false;$('wipeBtn').textContent='Clear all records';},4000);return;}
+  wipeArmed=false;this.textContent='Clear all records';
+  state.records=[];ui.focus=null;ui.demo=false;commit();renderProto();say('All records cleared. Cage labels and timing are kept.');
+});
+$('startBtn').addEventListener('click',function(){
+  leaveDemo();commit();
+});
+
+/* ---------- start ---------- */
+if(inClaude){$('exportIcs').hidden=true;}
+var local=loadLocal();
+if(local){state=local;}else{state=demoState(ui.today);ui.demo=true;}
+var migrated=autoMigrate();
+if(migrated){
+  $('noteText').textContent='Brought over '+migrated+' pairing'+(migrated===1?'':'s')+' from the old calendar. Cage numbers weren’t stored there, so they show as “?”. Open each plug-check day to set them.';
+  $('noteBanner').hidden=false;
+}
+$('noteOk').addEventListener('click',function(){$('noteBanner').hidden=true;});
+render();
+initCloud();
+setInterval(function(){var t=iso(new Date());if(t!==ui.today){ui.today=t;render();}},60000);
+})();
+</script>
+</body>
 </html>
