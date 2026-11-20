@@ -378,6 +378,10 @@ tr.isdone td{color:var(--faint)}
 tr.isdone td:first-child{font-weight:500}
 tr.isdone .task .ic{color:var(--faint)}
 @media (max-width:640px){.main{gap:14px}}
+@media (max-width:820px){
+  .field.wide{grid-template-columns:minmax(0,1fr);gap:6px;margin-bottom:16px}
+  .field.wide .inp{width:100%;min-width:0;font-size:16px}
+}
 </style>
 </head>
 <body>
@@ -392,8 +396,8 @@ tr.isdone .task .ic{color:var(--faint)}
 </header>
 <div class="page">
   <div class="banner" id="demoBanner" hidden>
-    <span>You’re looking at <strong>sample data</strong>. Changes made here aren’t saved.</span>
-    <button class="btn primary small" type="button" id="startBtn">Clear samples and start</button>
+    <span><strong>No records on this device yet.</strong> Connect to GitHub to load your saved calendar.</span>
+    <button class="btn primary small" type="button" id="connectBtn">Connect to GitHub</button>
   </div>
 
   <div class="banner" id="noteBanner" hidden>
@@ -598,14 +602,9 @@ function clean(raw){
   });
   return s;
 }
-function demoState(today){
-  var s=defaults(),rows=[[-57,['c2','c4'],'no'],[-50,[]],[-43,['c1'],'yes'],[-36,['c3','c5']],[-29,['c1','c2']],[-22,['c4']],[-15,['c1','c3']],[-8,['c2','c3','c5']],[-1,[]]];
-  rows.forEach(function(x,i){s.records.push({id:'demo'+i,date:addD(today,x[0]),plugs:x[1],checked:x[0]<-1,n:5,color:i%NCOL,birth:null,iue:15,img:[13,14],outcome:x[2]||null});});
-  return s;
-}
 
 var state=defaults();
-var lastCalKey='';
+var lastCalKey='',fresh=false;
 var ui={today:iso(new Date()),month:null,sel:null,focus:null,ended:false,demo:false,confirm:null,show:null,dim:90,edit:null,draft:null,nudge:false};
 ui.sel=ui.today;ui.month=ui.today.slice(0,7);
 try{var sv=JSON.parse(localStorage.getItem(VIEW)||'null');if(sv&&Array.isArray(sv.types)){ui.show={};sv.types.forEach(function(t){if(ICON[t])ui.show[t]=1;});if(Object.keys(ui.show).length===TYPES.length)ui.show=null;}if(sv&&sv.dimV===2&&Number.isFinite(sv.dim))ui.dim=Math.min(100,Math.max(0,Math.round(sv.dim)));}catch(e){}
@@ -689,7 +688,7 @@ function chip(e,extra){
 
 /* ---------- render ---------- */
 function render(){
-  $('demoBanner').hidden=!ui.demo;
+  $('demoBanner').hidden=!(ui.demo&&!inClaude&&!gh.cfg);
   var em=eventMap();
   renderFilters();renderCal(em);renderTodo(em);renderToday(em);renderDay(em);renderSummary();renderRule();
 }
@@ -967,7 +966,7 @@ function mergeOld(list){
 }
 function leaveDemo(){
   if(!ui.demo)return;
-  var cages=state.cages,proto=state.protocol;state=defaults();state.cages=cages;state.protocol=proto;ui.demo=false;ui.focus=null;
+  ui.demo=false;
 }
 function autoMigrate(){
   try{
@@ -1003,6 +1002,7 @@ function setSync(kind){
 }
 function commit(){
   ui.confirm=null;
+  if(ui.demo&&state.records.length)ui.demo=false;
   if(!ui.demo){state.updatedAt=Date.now();saveLocal();queueCloud();queueGh();}
   render();
 }
@@ -1020,6 +1020,20 @@ function flushCloud(){
     else setSync('offline');
   }).then(function(){cloud.busy=false;if(cloud.dirty&&!cloud.retried)flushCloud();});
 }
+function adoptKeeping(remote){
+  var have={},ids={},extra,cages;
+  remote.records.forEach(function(r){have[r.date]=1;});
+  remote.cages.forEach(function(c){ids[c.id]=1;});
+  extra=state.records.filter(function(r){return !have[r.date];});
+  cages=state.cages.filter(function(c){return !ids[c.id];});
+  adopt(remote);
+  if(extra.length){
+    cages.forEach(function(c){state.cages.push({id:c.id,name:c.name,hidden:true});});
+    extra.forEach(function(r){state.records.push(r);});
+    state.updatedAt=Date.now();saveLocal();render();
+  }
+  return extra.length;
+}
 function adopt(s){state=s;ui.demo=false;if(ui.focus&&!byId(ui.focus))ui.focus=null;saveLocal();render();if($('settings').open){renderCages();renderProto();}}
 function initCloud(){
   if(!inClaude){if(gh.cfg){setSync('connecting');ghRefresh();}else setSync('local');return;}
@@ -1034,7 +1048,8 @@ function initCloud(){
       return ref.get().then(function(snap){
         clearTimeout(timer);cloud.ref=ref;
         var remote=snap.exists?clean(JSON.parse(JSON.stringify(snap.data()))):null;
-        if(remote&&(ui.demo||remote.updatedAt>=state.updatedAt)){adopt(remote);setSync('synced');}
+        if(remote&&fresh&&!ui.demo){if(adoptKeeping(remote))queueCloud();else setSync('synced');}
+        else if(remote&&(ui.demo||remote.updatedAt>=state.updatedAt)){adopt(remote);setSync('synced');}
         else if(!ui.demo&&state.updatedAt>0){queueCloud();}
         else setSync(ui.demo?'ready':'synced');
         ref.onSnapshot(function(sn){
@@ -1121,17 +1136,8 @@ async function ghRefresh(first){
     var remote=await ghPull();
     if(remote&&first&&!ui.demo){
       /* first connection on this device: what is on GitHub wins, pairings only this device has are added */
-      var have={},ids={},extra,cages;
-      remote.records.forEach(function(r){have[r.date]=1;});
-      remote.cages.forEach(function(c){ids[c.id]=1;});
-      extra=state.records.filter(function(r){return !have[r.date];});
-      cages=state.cages.filter(function(c){return !ids[c.id];});
-      adopt(remote);out='loaded';
-      if(extra.length){
-        cages.forEach(function(c){state.cages.push({id:c.id,name:c.name,hidden:true});});
-        extra.forEach(function(r){state.records.push(r);});
-        state.updatedAt=Date.now();saveLocal();render();gh.dirty=true;out={merged:extra.length};
-      }
+      var kept=adoptKeeping(remote);out='loaded';
+      if(kept){gh.dirty=true;out={merged:kept};}
     }
     else if(remote&&(ui.demo||remote.updatedAt>state.updatedAt)){adopt(remote);out='loaded';}
     else if(!ui.demo&&state.updatedAt>0&&(!remote||remote.updatedAt<state.updatedAt)){gh.dirty=true;out='uploaded';}
@@ -1144,10 +1150,14 @@ async function ghRefresh(first){
 }
 document.addEventListener('visibilitychange',function(){if(!document.hidden&&gh.cfg&&Date.now()-gh.last>30000)ghRefresh();});
 function ghSay(t,err){var el=$('ghMsg');el.textContent=t;el.className='msg'+(err?' err':'');}
+function defaultRepo(){
+  var m=/^([\w-]+)\.github\.io$/i.exec(location.hostname);
+  return m?m[1]+'/MyNeuronLab-data':'';
+}
 function renderGh(){
   $('ghSection').hidden=inClaude;
   if(inClaude)return;
-  $('ghRepo').value=gh.cfg?gh.cfg.repo:'';$('ghPath').value=gh.cfg?gh.cfg.path:'calendar.json';
+  $('ghRepo').value=gh.cfg?gh.cfg.repo:defaultRepo();$('ghPath').value=gh.cfg?gh.cfg.path:'calendar.json';
   $('ghToken').value='';$('ghToken').placeholder=gh.cfg?'Saved on this device':'github_pat_…';
   $('ghConnect').textContent=gh.cfg?'Update':'Connect';$('ghDisconnect').hidden=!gh.cfg;
   ghSay(gh.cfg?'Connected to '+gh.cfg.repo+'.':'',false);
@@ -1328,13 +1338,13 @@ $('saveProto').addEventListener('click',function(){
   state.protocol={iue:v,img:img,p0From:from};
   if(apply)state.records.forEach(function(r){if(!isDone(r)){r.iue=v;r.img=img.slice();n++;}});
   commit();renderProto();
-  protoSay(ui.demo?'Applied to the sample data. Nothing is saved until you clear the samples.':('Saved. '+(apply?n+' pairing'+(n===1?'':'s')+' in progress updated, and new':'New')+' pairings use this timing.'),false);
+  protoSay(ui.demo?'Applied. It is saved with your first pairing.':('Saved. '+(apply?n+' pairing'+(n===1?'':'s')+' in progress updated, and new':'New')+' pairings use this timing.'),false);
 });
 var nameTimer=null;
 $('cageList').addEventListener('input',function(e){
   var id=e.target.dataset.cageName;if(!id)return;
   state.cages.forEach(function(c){if(c.id===id)c.name=e.target.value.trim().slice(0,20);});
-  clearTimeout(nameTimer);nameTimer=setTimeout(function(){commit();say(ui.demo?'Sample mode: labels aren’t saved yet.':'Saved.');},350);
+  clearTimeout(nameTimer);nameTimer=setTimeout(function(){commit();say(ui.demo?'Labels are saved with your first pairing.':'Saved.');},350);
 });
 $('cageList').addEventListener('click',function(e){
   var t=e.target.closest('[data-cage-del]');if(!t)return;
@@ -1396,14 +1406,16 @@ $('wipeBtn').addEventListener('click',function(){
   wipeArmed=false;this.textContent='Clear all records';
   state.records=[];ui.focus=null;ui.demo=false;commit();renderProto();say('All records cleared. Cage labels and timing are kept.');
 });
-$('startBtn').addEventListener('click',function(){
-  leaveDemo();commit();
+$('connectBtn').addEventListener('click',function(){
+  $('openSettings').click();
+  var s=$('ghSection');if(s.scrollIntoView)s.scrollIntoView({block:'start'});
+  ($('ghRepo').value?$('ghToken'):$('ghRepo')).focus();
 });
 
 /* ---------- start ---------- */
 if(inClaude){$('exportIcs').hidden=true;}
-var local=loadLocal();
-if(local){state=local;}else{state=demoState(ui.today);ui.demo=true;}
+var local=loadLocal();fresh=!local;
+if(local){state=local;}else{state=defaults();ui.demo=true;}
 var migrated=autoMigrate();
 if(migrated){
   $('noteText').textContent='Brought over '+migrated+' pairing'+(migrated===1?'':'s')+' from the old calendar. Cage numbers weren’t stored there, so they show as “?”. Open each plug-check day to set them.';
